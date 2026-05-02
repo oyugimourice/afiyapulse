@@ -137,6 +137,43 @@ export interface PatientHistorySummary {
   procedures: FHIRProcedure[];
 }
 
+export interface AppointmentSlot {
+  id: string;
+  doctorId: string;
+  doctorName: string;
+  specialty?: string;
+  startTime: string;
+  endTime: string;
+  isAvailable: boolean;
+  location?: string;
+}
+
+export interface Appointment {
+  id: string;
+  patientId: string;
+  patientName: string;
+  doctorId: string;
+  doctorName: string;
+  type: 'FOLLOW_UP' | 'LAB_WORK' | 'IMAGING' | 'SPECIALIST' | 'PROCEDURE';
+  scheduledAt: string;
+  duration: number;
+  status: 'scheduled' | 'confirmed' | 'cancelled' | 'completed' | 'no-show';
+  reason?: string;
+  notes?: string;
+  location?: string;
+}
+
+export interface DoctorAvailability {
+  doctorId: string;
+  doctorName: string;
+  specialty?: string;
+  availableSlots: AppointmentSlot[];
+  workingHours: {
+    start: string;
+    end: string;
+  };
+}
+
 /**
  * MCP Client Service
  * Manages connections to MCP servers and provides methods to call their tools
@@ -415,6 +452,94 @@ class MCPClientService {
     });
   }
 
+  // ============================================
+  // Appointment System MCP Server Methods
+  // ============================================
+
+  /**
+   * Check doctor availability for a specific date
+   */
+  async checkAvailability(
+    date: string,
+    doctorId?: string,
+    specialty?: string,
+    duration: number = 30
+  ): Promise<DoctorAvailability[]> {
+    return await this.callTool('appointment-system', 'check_availability', {
+      date,
+      doctorId,
+      specialty,
+      duration,
+    });
+  }
+
+  /**
+   * Book a new appointment
+   */
+  async bookAppointment(params: {
+    patientId: string;
+    patientName: string;
+    doctorId: string;
+    scheduledAt: string;
+    type: 'FOLLOW_UP' | 'LAB_WORK' | 'IMAGING' | 'SPECIALIST' | 'PROCEDURE';
+    duration?: number;
+    reason?: string;
+    notes?: string;
+  }): Promise<Appointment> {
+    return await this.callTool('appointment-system', 'book_appointment', params);
+  }
+
+  /**
+   * Get appointment details
+   */
+  async getAppointment(appointmentId: string): Promise<Appointment> {
+    return await this.callTool('appointment-system', 'get_appointment', {
+      appointmentId,
+    });
+  }
+
+  /**
+   * Get patient appointments
+   */
+  async getPatientAppointments(
+    patientId: string,
+    status?: string,
+    fromDate?: string,
+    limit: number = 10
+  ): Promise<Appointment[]> {
+    return await this.callTool('appointment-system', 'get_patient_appointments', {
+      patientId,
+      status,
+      fromDate,
+      limit,
+    });
+  }
+
+  /**
+   * Cancel an appointment
+   */
+  async cancelAppointment(appointmentId: string, reason?: string): Promise<Appointment> {
+    return await this.callTool('appointment-system', 'cancel_appointment', {
+      appointmentId,
+      reason,
+    });
+  }
+
+  /**
+   * Reschedule an appointment
+   */
+  async rescheduleAppointment(
+    appointmentId: string,
+    newScheduledAt: string,
+    reason?: string
+  ): Promise<Appointment> {
+    return await this.callTool('appointment-system', 'reschedule_appointment', {
+      appointmentId,
+      newScheduledAt,
+      reason,
+    });
+  }
+
   /**
    * Initialize all MCP servers
    */
@@ -434,6 +559,15 @@ class MCPClientService {
       command: 'node',
       args: [
         './apps/mcp-servers/fhir-ehr/dist/index.js',
+      ],
+    });
+
+    // Appointment System MCP Server
+    await this.connect({
+      name: 'appointment-system',
+      command: 'node',
+      args: [
+        './apps/mcp-servers/appointment-system/dist/index.js',
       ],
     });
 
