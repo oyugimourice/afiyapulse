@@ -2,7 +2,6 @@ import { Socket } from 'socket.io';
 import consultationService from '../../services/consultation.service';
 import watsonService from '../../services/watson.service';
 import logger from '../../config/logger';
-import { Readable } from 'stream';
 
 interface AuthenticatedSocket extends Socket {
   user: {
