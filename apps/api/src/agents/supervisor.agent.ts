@@ -2,6 +2,7 @@ import { EventEmitter } from 'events';
 import { AgentContext } from './base.agent';
 import clinicalScribeAgent from './clinical-scribe.agent';
 import prescriptionDrafterAgent from './prescription-drafter.agent';
+import { referralWriterAgent } from './referral-writer.agent';
 import logger from '../config/logger';
 import { prisma } from '@afiyapulse/database';
 
@@ -89,8 +90,8 @@ export class SupervisorAgent extends EventEmitter {
     const agentPromises = [
       this.runClinicalScribe(context),
       this.runPrescriptionDrafter(context),
+      this.runReferralWriter(context),
       // Add more agents here as they are implemented
-      // this.runReferralWriter(context),
       // this.runFollowUpScheduler(context),
     ];
 
@@ -146,6 +147,26 @@ export class SupervisorAgent extends EventEmitter {
   }
 
   /**
+   * Run Referral Writer Agent
+   */
+  private async runReferralWriter(context: AgentContext): Promise<void> {
+    try {
+      logger.info('Starting Referral Writer Agent');
+      const referral = await referralWriterAgent.process(context);
+      
+      this.emit('agent_completed', {
+        agent: 'referral',
+        consultationId: this.consultationId,
+        result: referral,
+        timestamp: new Date(),
+      });
+    } catch (error) {
+      logger.error('Referral Writer Agent failed:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Set up event listeners for all agents
    */
   private setupAgentListeners(): void {
@@ -192,6 +213,28 @@ export class SupervisorAgent extends EventEmitter {
         ...error,
       });
     });
+
+    // Referral Writer Agent listeners
+    referralWriterAgent.on('status', (status) => {
+      this.emit('agent_status', {
+        consultationId: this.consultationId,
+        ...status,
+      });
+    });
+
+    referralWriterAgent.on('message', (message) => {
+      this.emit('agent_message', {
+        consultationId: this.consultationId,
+        ...message,
+      });
+    });
+
+    referralWriterAgent.on('error', (error) => {
+      this.emit('agent_error', {
+        consultationId: this.consultationId,
+        ...error,
+      });
+    });
   }
 
   /**
@@ -214,6 +257,7 @@ export class SupervisorAgent extends EventEmitter {
     // Clean up agent listeners
     clinicalScribeAgent.removeAllListeners();
     prescriptionDrafterAgent.removeAllListeners();
+    referralWriterAgent.removeAllListeners();
 
     logger.info(`Supervisor stopped for consultation ${this.consultationId}`);
   }
@@ -228,6 +272,7 @@ export class SupervisorAgent extends EventEmitter {
       agents: {
         scribe: clinicalScribeAgent.getInfo(),
         prescription: prescriptionDrafterAgent.getInfo(),
+        referral: referralWriterAgent.getInfo(),
       },
     };
   }
@@ -241,6 +286,8 @@ export class SupervisorAgent extends EventEmitter {
         return await clinicalScribeAgent.process(context);
       case 'prescription':
         return await prescriptionDrafterAgent.process(context);
+      case 'referral':
+        return await referralWriterAgent.process(context);
       default:
         throw new Error(`Unknown agent type: ${agentType}`);
     }
