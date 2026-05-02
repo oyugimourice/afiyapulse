@@ -1,40 +1,83 @@
 import { Router } from 'express';
-import { authenticate, authorize, AuthRequest } from '../middleware/auth.middleware';
-import { UserRole } from '@prisma/client';
+import { authenticate, authorize } from '../middleware/auth.middleware';
+import patientService from '../services/patient.service';
+import { AppError } from '../middleware/error.middleware';
 
 const router = Router();
-
-// All patient routes require authentication
-router.use(authenticate);
 
 /**
  * @route   POST /api/patients
  * @desc    Create a new patient
  * @access  Private (Doctor, Nurse, Admin)
  */
-router.post('/', authorize(UserRole.DOCTOR, UserRole.NURSE, UserRole.ADMIN), async (req: AuthRequest, res, next) => {
-  try {
-    // TODO: Implement patient creation
-    res.status(501).json({
-      success: false,
-      message: 'Patient creation not yet implemented',
-    });
-  } catch (error) {
-    next(error);
+router.post(
+  '/',
+  authenticate,
+  authorize(['DOCTOR', 'NURSE', 'ADMIN']),
+  async (req, res, next) => {
+    try {
+      const {
+        mrn,
+        firstName,
+        lastName,
+        dob,
+        gender,
+        phone,
+        email,
+        address,
+        allergies,
+        medicalHistory,
+      } = req.body;
+
+      if (!mrn || !firstName || !lastName || !dob || !gender) {
+        throw new AppError(
+          'MRN, first name, last name, date of birth, and gender are required',
+          400
+        );
+      }
+
+      const patient = await patientService.createPatient({
+        mrn,
+        firstName,
+        lastName,
+        dob: new Date(dob),
+        gender,
+        phone,
+        email,
+        address,
+        allergies,
+        medicalHistory,
+      });
+
+      res.status(201).json({
+        success: true,
+        data: patient,
+      });
+    } catch (error) {
+      next(error);
+    }
   }
-});
+);
 
 /**
  * @route   GET /api/patients
- * @desc    List patients with search and pagination
+ * @desc    Search patients
  * @access  Private
  */
-router.get('/', async (req: AuthRequest, res, next) => {
+router.get('/', authenticate, async (req, res, next) => {
   try {
-    // TODO: Implement patient listing
-    res.status(501).json({
-      success: false,
-      message: 'Patient listing not yet implemented',
+    const { query, page, limit } = req.query;
+
+    const result = await patientService.searchPatients({
+      query: query as string,
+      page: page ? parseInt(page as string) : undefined,
+      limit: limit ? parseInt(limit as string) : undefined,
+    });
+
+    res.json({
+      success: true,
+      data: result.patients,
+      pagination: result.pagination,
     });
   } catch (error) {
     next(error);
@@ -43,15 +86,38 @@ router.get('/', async (req: AuthRequest, res, next) => {
 
 /**
  * @route   GET /api/patients/:id
- * @desc    Get patient details
+ * @desc    Get patient by ID
  * @access  Private
  */
-router.get('/:id', async (req: AuthRequest, res, next) => {
+router.get('/:id', authenticate, async (req, res, next) => {
   try {
-    // TODO: Implement get patient
-    res.status(501).json({
-      success: false,
-      message: 'Get patient not yet implemented',
+    const { id } = req.params;
+
+    const patient = await patientService.getPatient(id);
+
+    res.json({
+      success: true,
+      data: patient,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * @route   GET /api/patients/mrn/:mrn
+ * @desc    Get patient by MRN
+ * @access  Private
+ */
+router.get('/mrn/:mrn', authenticate, async (req, res, next) => {
+  try {
+    const { mrn } = req.params;
+
+    const patient = await patientService.getPatientByMRN(mrn);
+
+    res.json({
+      success: true,
+      data: patient,
     });
   } catch (error) {
     next(error);
@@ -63,12 +129,62 @@ router.get('/:id', async (req: AuthRequest, res, next) => {
  * @desc    Update patient
  * @access  Private (Doctor, Nurse, Admin)
  */
-router.patch('/:id', authorize(UserRole.DOCTOR, UserRole.NURSE, UserRole.ADMIN), async (req: AuthRequest, res, next) => {
+router.patch(
+  '/:id',
+  authenticate,
+  authorize(['DOCTOR', 'NURSE', 'ADMIN']),
+  async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const {
+        firstName,
+        lastName,
+        phone,
+        email,
+        address,
+        allergies,
+        medicalHistory,
+      } = req.body;
+
+      const patient = await patientService.updatePatient(id, {
+        firstName,
+        lastName,
+        phone,
+        email,
+        address,
+        allergies,
+        medicalHistory,
+      });
+
+      res.json({
+        success: true,
+        data: patient,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * @route   GET /api/patients/:id/consultations
+ * @desc    Get patient consultation history
+ * @access  Private
+ */
+router.get('/:id/consultations', authenticate, async (req, res, next) => {
   try {
-    // TODO: Implement patient update
-    res.status(501).json({
-      success: false,
-      message: 'Patient update not yet implemented',
+    const { id } = req.params;
+    const { page, limit } = req.query;
+
+    const result = await patientService.getConsultationHistory(id, {
+      page: page ? parseInt(page as string) : undefined,
+      limit: limit ? parseInt(limit as string) : undefined,
+    });
+
+    res.json({
+      success: true,
+      data: result.consultations,
+      pagination: result.pagination,
     });
   } catch (error) {
     next(error);
@@ -76,21 +192,29 @@ router.patch('/:id', authorize(UserRole.DOCTOR, UserRole.NURSE, UserRole.ADMIN),
 });
 
 /**
- * @route   GET /api/patients/:id/history
- * @desc    Get patient medical history
- * @access  Private
+ * @route   DELETE /api/patients/:id
+ * @desc    Delete patient
+ * @access  Private (Admin only)
  */
-router.get('/:id/history', async (req: AuthRequest, res, next) => {
-  try {
-    // TODO: Implement patient history
-    res.status(501).json({
-      success: false,
-      message: 'Patient history not yet implemented',
-    });
-  } catch (error) {
-    next(error);
+router.delete(
+  '/:id',
+  authenticate,
+  authorize(['ADMIN']),
+  async (req, res, next) => {
+    try {
+      const { id } = req.params;
+
+      await patientService.deletePatient(id);
+
+      res.json({
+        success: true,
+        message: 'Patient deleted successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
   }
-});
+);
 
 export default router;
 
