@@ -3,6 +3,7 @@ import { AgentContext } from './base.agent';
 import clinicalScribeAgent from './clinical-scribe.agent';
 import prescriptionDrafterAgent from './prescription-drafter.agent';
 import { referralWriterAgent } from './referral-writer.agent';
+import { followUpSchedulerAgent } from './followup-scheduler.agent';
 import logger from '../config/logger';
 import { prisma } from '@afiyapulse/database';
 
@@ -91,8 +92,7 @@ export class SupervisorAgent extends EventEmitter {
       this.runClinicalScribe(context),
       this.runPrescriptionDrafter(context),
       this.runReferralWriter(context),
-      // Add more agents here as they are implemented
-      // this.runFollowUpScheduler(context),
+      this.runFollowUpScheduler(context),
     ];
 
     // Wait for all agents to complete
@@ -167,6 +167,26 @@ export class SupervisorAgent extends EventEmitter {
   }
 
   /**
+   * Run Follow-up Scheduler Agent
+   */
+  private async runFollowUpScheduler(context: AgentContext): Promise<void> {
+    try {
+      logger.info('Starting Follow-up Scheduler Agent');
+      const appointment = await followUpSchedulerAgent.process(context);
+      
+      this.emit('agent_completed', {
+        agent: 'followup',
+        consultationId: this.consultationId,
+        result: appointment,
+        timestamp: new Date(),
+      });
+    } catch (error) {
+      logger.error('Follow-up Scheduler Agent failed:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Set up event listeners for all agents
    */
   private setupAgentListeners(): void {
@@ -235,6 +255,28 @@ export class SupervisorAgent extends EventEmitter {
         ...error,
       });
     });
+
+    // Follow-up Scheduler Agent listeners
+    followUpSchedulerAgent.on('status', (status) => {
+      this.emit('agent_status', {
+        consultationId: this.consultationId,
+        ...status,
+      });
+    });
+
+    followUpSchedulerAgent.on('message', (message) => {
+      this.emit('agent_message', {
+        consultationId: this.consultationId,
+        ...message,
+      });
+    });
+
+    followUpSchedulerAgent.on('error', (error) => {
+      this.emit('agent_error', {
+        consultationId: this.consultationId,
+        ...error,
+      });
+    });
   }
 
   /**
@@ -258,6 +300,7 @@ export class SupervisorAgent extends EventEmitter {
     clinicalScribeAgent.removeAllListeners();
     prescriptionDrafterAgent.removeAllListeners();
     referralWriterAgent.removeAllListeners();
+    followUpSchedulerAgent.removeAllListeners();
 
     logger.info(`Supervisor stopped for consultation ${this.consultationId}`);
   }
@@ -273,6 +316,7 @@ export class SupervisorAgent extends EventEmitter {
         scribe: clinicalScribeAgent.getInfo(),
         prescription: prescriptionDrafterAgent.getInfo(),
         referral: referralWriterAgent.getInfo(),
+        followup: followUpSchedulerAgent.getInfo(),
       },
     };
   }
@@ -288,6 +332,8 @@ export class SupervisorAgent extends EventEmitter {
         return await prescriptionDrafterAgent.process(context);
       case 'referral':
         return await referralWriterAgent.process(context);
+      case 'followup':
+        return await followUpSchedulerAgent.process(context);
       default:
         throw new Error(`Unknown agent type: ${agentType}`);
     }
