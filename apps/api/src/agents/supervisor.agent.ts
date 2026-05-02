@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 import { AgentContext } from './base.agent';
 import clinicalScribeAgent from './clinical-scribe.agent';
+import prescriptionDrafterAgent from './prescription-drafter.agent';
 import logger from '../config/logger';
 import { prisma } from '@afiyapulse/database';
 
@@ -87,8 +88,8 @@ export class SupervisorAgent extends EventEmitter {
     // Run agents in parallel
     const agentPromises = [
       this.runClinicalScribe(context),
+      this.runPrescriptionDrafter(context),
       // Add more agents here as they are implemented
-      // this.runPrescriptionDrafter(context),
       // this.runReferralWriter(context),
       // this.runFollowUpScheduler(context),
     ];
@@ -125,6 +126,26 @@ export class SupervisorAgent extends EventEmitter {
   }
 
   /**
+   * Run Prescription Drafter Agent
+   */
+  private async runPrescriptionDrafter(context: AgentContext): Promise<void> {
+    try {
+      logger.info('Starting Prescription Drafter Agent');
+      const prescription = await prescriptionDrafterAgent.process(context);
+      
+      this.emit('agent_completed', {
+        agent: 'prescription',
+        consultationId: this.consultationId,
+        result: prescription,
+        timestamp: new Date(),
+      });
+    } catch (error) {
+      logger.error('Prescription Drafter Agent failed:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Set up event listeners for all agents
    */
   private setupAgentListeners(): void {
@@ -144,6 +165,28 @@ export class SupervisorAgent extends EventEmitter {
     });
 
     clinicalScribeAgent.on('error', (error) => {
+      this.emit('agent_error', {
+        consultationId: this.consultationId,
+        ...error,
+      });
+    });
+
+    // Prescription Drafter Agent listeners
+    prescriptionDrafterAgent.on('status', (status) => {
+      this.emit('agent_status', {
+        consultationId: this.consultationId,
+        ...status,
+      });
+    });
+
+    prescriptionDrafterAgent.on('message', (message) => {
+      this.emit('agent_message', {
+        consultationId: this.consultationId,
+        ...message,
+      });
+    });
+
+    prescriptionDrafterAgent.on('error', (error) => {
       this.emit('agent_error', {
         consultationId: this.consultationId,
         ...error,
@@ -170,6 +213,7 @@ export class SupervisorAgent extends EventEmitter {
     
     // Clean up agent listeners
     clinicalScribeAgent.removeAllListeners();
+    prescriptionDrafterAgent.removeAllListeners();
 
     logger.info(`Supervisor stopped for consultation ${this.consultationId}`);
   }
@@ -183,7 +227,7 @@ export class SupervisorAgent extends EventEmitter {
       isRunning: this.isRunning,
       agents: {
         scribe: clinicalScribeAgent.getInfo(),
-        // Add more agents here
+        prescription: prescriptionDrafterAgent.getInfo(),
       },
     };
   }
@@ -195,7 +239,8 @@ export class SupervisorAgent extends EventEmitter {
     switch (agentType) {
       case 'scribe':
         return await clinicalScribeAgent.process(context);
-      // Add more agents here
+      case 'prescription':
+        return await prescriptionDrafterAgent.process(context);
       default:
         throw new Error(`Unknown agent type: ${agentType}`);
     }
