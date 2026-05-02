@@ -46,6 +46,97 @@ export interface DosageValidation {
   recommendations?: any[];
 }
 
+export interface FHIRPatient {
+  id: string;
+  mrn: string;
+  firstName: string;
+  lastName: string;
+  dob: string;
+  gender: 'MALE' | 'FEMALE' | 'OTHER' | 'UNKNOWN';
+  phone?: string;
+  email?: string;
+  address?: string;
+  allergies: string[];
+}
+
+export interface FHIRObservation {
+  id: string;
+  patientId: string;
+  type: 'LAB' | 'VITAL' | 'IMAGING';
+  code: string;
+  display: string;
+  value: string;
+  unit?: string;
+  referenceRange?: string;
+  status: 'preliminary' | 'final' | 'amended' | 'corrected';
+  effectiveDate: string;
+  interpretation?: 'normal' | 'abnormal' | 'critical' | 'high' | 'low';
+  notes?: string;
+}
+
+export interface FHIRCondition {
+  id: string;
+  patientId: string;
+  code: string;
+  display: string;
+  clinicalStatus: 'active' | 'recurrence' | 'relapse' | 'inactive' | 'remission' | 'resolved';
+  verificationStatus: 'unconfirmed' | 'provisional' | 'differential' | 'confirmed' | 'refuted';
+  severity?: 'mild' | 'moderate' | 'severe';
+  onsetDate: string;
+  recordedDate: string;
+  notes?: string;
+}
+
+export interface FHIRMedicationStatement {
+  id: string;
+  patientId: string;
+  medicationName: string;
+  dosage: string;
+  frequency: string;
+  route: string;
+  status: 'active' | 'completed' | 'entered-in-error' | 'intended' | 'stopped' | 'on-hold';
+  startDate: string;
+  endDate?: string;
+  prescribedBy?: string;
+  reason?: string;
+}
+
+export interface FHIREncounter {
+  id: string;
+  patientId: string;
+  type: string;
+  status: 'planned' | 'arrived' | 'in-progress' | 'finished' | 'cancelled';
+  class: 'inpatient' | 'outpatient' | 'emergency' | 'home-health' | 'virtual';
+  startDate: string;
+  endDate?: string;
+  practitioner: string;
+  reasonCode?: string;
+  reasonDisplay?: string;
+  diagnosis?: string[];
+  notes?: string;
+}
+
+export interface FHIRProcedure {
+  id: string;
+  patientId: string;
+  code: string;
+  display: string;
+  status: 'preparation' | 'in-progress' | 'completed' | 'not-done' | 'stopped';
+  performedDate: string;
+  performer?: string;
+  outcome?: string;
+  notes?: string;
+}
+
+export interface PatientHistorySummary {
+  patient: FHIRPatient;
+  activeConditions: FHIRCondition[];
+  activeMedications: FHIRMedicationStatement[];
+  recentEncounters: FHIREncounter[];
+  recentObservations: FHIRObservation[];
+  procedures: FHIRProcedure[];
+}
+
 /**
  * MCP Client Service
  * Manages connections to MCP servers and provides methods to call their tools
@@ -236,6 +327,94 @@ class MCPClientService {
     return result.categories || [];
   }
 
+  // ============================================
+  // FHIR EHR MCP Server Methods
+  // ============================================
+
+  /**
+   * Get patient demographic information
+   */
+  async getPatient(patientId: string): Promise<FHIRPatient> {
+    return await this.callTool('fhir-ehr', 'get_patient', { patientId });
+  }
+
+  /**
+   * Get comprehensive patient history
+   */
+  async getPatientHistory(
+    patientId: string,
+    includeInactive: boolean = false,
+    limit: number = 10
+  ): Promise<PatientHistorySummary> {
+    return await this.callTool('fhir-ehr', 'get_patient_history', {
+      patientId,
+      includeInactive,
+      limit,
+    });
+  }
+
+  /**
+   * Get patient observations (lab results, vitals, imaging)
+   */
+  async getObservations(
+    patientId: string,
+    type?: 'LAB' | 'VITAL' | 'IMAGING',
+    fromDate?: string,
+    limit: number = 20
+  ): Promise<FHIRObservation[]> {
+    return await this.callTool('fhir-ehr', 'get_observations', {
+      patientId,
+      type,
+      fromDate,
+      limit,
+    });
+  }
+
+  /**
+   * Get patient conditions (diagnoses, problems)
+   */
+  async getConditions(
+    patientId: string,
+    clinicalStatus?: string,
+    limit: number = 20
+  ): Promise<FHIRCondition[]> {
+    return await this.callTool('fhir-ehr', 'get_conditions', {
+      patientId,
+      clinicalStatus,
+      limit,
+    });
+  }
+
+  /**
+   * Get patient medication history
+   */
+  async getMedicationHistory(
+    patientId: string,
+    status?: string,
+    limit: number = 20
+  ): Promise<FHIRMedicationStatement[]> {
+    return await this.callTool('fhir-ehr', 'get_medication_history', {
+      patientId,
+      status,
+      limit,
+    });
+  }
+
+  /**
+   * Get patient encounter history
+   */
+  async getEncounters(
+    patientId: string,
+    fromDate?: string,
+    limit: number = 10
+  ): Promise<FHIREncounter[]> {
+    return await this.callTool('fhir-ehr', 'get_encounters', {
+      patientId,
+      fromDate,
+      limit,
+    });
+  }
+
   /**
    * Initialize all MCP servers
    */
@@ -246,6 +425,15 @@ class MCPClientService {
       command: 'node',
       args: [
         './apps/mcp-servers/drug-database/dist/index.js',
+      ],
+    });
+
+    // FHIR EHR MCP Server
+    await this.connect({
+      name: 'fhir-ehr',
+      command: 'node',
+      args: [
+        './apps/mcp-servers/fhir-ehr/dist/index.js',
       ],
     });
 
