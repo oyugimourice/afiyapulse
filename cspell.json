@@ -1,0 +1,26 @@
+{
+  "version": "0.2",
+  "language": "en",
+  "words": [
+    "afiyapulse",
+    "prisma",
+    "bcryptjs",
+    "jsonwebtoken",
+    "websocket",
+    "fhir",
+    "openai",
+    "langchain"
+  ],
+  "ignorePaths": [
+    "node_modules",
+    "dist",
+    "build",
+    ".next",
+    "coverage",
+    "*.min.js",
+    "package-lock.json",
+    "*.log"
+  ]
+}
+
+// Made with Bob

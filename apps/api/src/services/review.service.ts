@@ -2,6 +2,7 @@ import { prisma } from '@afiyapulse/database';
 import cacheService from './cache.service';
 import auditService, { AuditAction } from './audit.service';
 import logger from '../config/logger';
+import emailService from './email.service';
 
 /**
  * Review Panel Service
@@ -602,6 +603,34 @@ class ReviewService {
         approved: approved.length,
         failed: failed.length,
       });
+
+      // Send email notification if all documents approved
+      if (approved.length > 0 && failed.length === 0) {
+        const fullConsultation = await prisma.consultation.findUnique({
+          where: { id: consultationId },
+          include: {
+            patient: true,
+            doctor: true,
+          },
+        });
+
+        if (fullConsultation && fullConsultation.patient.email) {
+          const documents: string[] = [];
+          if (consultation.soapNote) documents.push('SOAP Note');
+          if (consultation.prescription) documents.push('Prescription');
+          if (consultation.referral) documents.push('Referral Letter');
+          if (consultation.appointment) documents.push('Follow-up Appointment');
+
+          emailService.sendDocumentsReadyEmail(fullConsultation.patient.email, {
+            patientName: `${fullConsultation.patient.firstName} ${fullConsultation.patient.lastName}`,
+            doctorName: fullConsultation.doctor.name,
+            documents,
+            reviewLink: `${process.env.FRONTEND_URL}/review?consultation=${consultationId}`,
+          }).catch(error => {
+            logger.error('Failed to send documents ready email:', error);
+          });
+        }
+      }
 
       return { approved, failed };
     } catch (error) {

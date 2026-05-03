@@ -149,6 +149,42 @@ export class StorageService {
       throw new AppError('Failed to upload audio chunk', 500);
     }
   }
+
+  /**
+   * Upload generic file to S3
+   */
+  async uploadFile(
+    fileBuffer: Buffer,
+    fileName: string,
+    contentType: string = 'application/octet-stream'
+  ): Promise<string> {
+    try {
+      const fileKey = `documents/${Date.now()}-${fileName}`;
+
+      const command = new PutObjectCommand({
+        Bucket: this.bucketName,
+        Key: fileKey,
+        Body: fileBuffer,
+        ContentType: contentType,
+        Metadata: {
+          uploadedAt: new Date().toISOString(),
+        },
+      });
+
+      await this.s3Client.send(command);
+
+      // Generate IBM Cloud Object Storage URL
+      const endpoint = process.env.AWS_ENDPOINT || 'https://s3.us-east.cloud-object-storage.appdomain.cloud';
+      const url = `${endpoint}/${this.bucketName}/${fileKey}`;
+
+      logger.info(`File uploaded to IBM Cloud Object Storage: ${fileKey}`);
+
+      return url;
+    } catch (error) {
+      logger.error('Failed to upload file to S3:', error);
+      throw new AppError('Failed to upload file', 500);
+    }
+  }
 }
 
 export default new StorageService();

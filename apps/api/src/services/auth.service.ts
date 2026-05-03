@@ -5,11 +5,12 @@ import { UserRole } from '@afiyapulse/database';
 import { AppError } from '../middleware/error.middleware';
 import redisClient from '../config/redis';
 import logger from '../config/logger';
+import emailService from './email.service';
 
 export class AuthService {
-  private readonly JWT_SECRET: string;
-  private readonly JWT_EXPIRES_IN: string;
-  private readonly JWT_REFRESH_EXPIRES_IN: string;
+  private readonly JWT_SECRET: jwt.Secret;
+  private readonly JWT_EXPIRES_IN: string | number;
+  private readonly JWT_REFRESH_EXPIRES_IN: string | number;
 
   constructor() {
     this.JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
@@ -73,6 +74,14 @@ export class AuthService {
     });
 
     logger.info(`New user registered: ${user.email}`);
+
+    // Send welcome email (async, don't wait)
+    emailService.sendWelcomeEmail(user.email, {
+      name: user.name,
+      email: user.email,
+    }).catch(error => {
+      logger.error('Failed to send welcome email:', error);
+    });
 
     return user;
   }
@@ -204,18 +213,18 @@ export class AuthService {
   /**
    * Generate access token
    */
-  private generateAccessToken(payload: { id: string; email: string; role: UserRole }) {
+  private generateAccessToken(payload: { id: string; email: string; role: UserRole }): string {
     return jwt.sign(payload, this.JWT_SECRET, {
-      expiresIn: this.JWT_EXPIRES_IN,
+      expiresIn: this.JWT_EXPIRES_IN as jwt.SignOptions['expiresIn'],
     });
   }
 
   /**
    * Generate refresh token
    */
-  private generateRefreshToken(payload: { id: string; email: string; role: UserRole }) {
+  private generateRefreshToken(payload: { id: string; email: string; role: UserRole }): string {
     return jwt.sign(payload, this.JWT_SECRET, {
-      expiresIn: this.JWT_REFRESH_EXPIRES_IN,
+      expiresIn: this.JWT_REFRESH_EXPIRES_IN as jwt.SignOptions['expiresIn'],
     });
   }
 

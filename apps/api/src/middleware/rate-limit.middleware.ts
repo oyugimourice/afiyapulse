@@ -107,7 +107,7 @@ export const rateLimiter = createRateLimiter({
  */
 export const authRateLimiter = createRateLimiter({
   windowMs: 60000, // 1 minute
-  max: 5,
+  max: parseInt(process.env.AUTH_RATE_LIMIT_MAX_REQUESTS || '20'),
   message: 'Too many authentication attempts, please try again later',
   skipSuccessfulRequests: true,
 });
