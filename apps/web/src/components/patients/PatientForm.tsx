@@ -11,7 +11,7 @@ const patientSchema = z.object({
   firstName: z.string().min(1, 'First name is required'),
   lastName: z.string().min(1, 'Last name is required'),
   dateOfBirth: z.string().min(1, 'Date of birth is required'),
-  gender: z.enum(['MALE', 'FEMALE', 'OTHER']),
+  gender: z.enum(['MALE', 'FEMALE', 'OTHER', 'UNKNOWN']),
   email: z.string().email('Invalid email').optional().or(z.literal('')),
   phone: z.string().min(10, 'Phone number must be at least 10 digits'),
   address: z.string().optional(),
@@ -47,8 +47,20 @@ export default function PatientForm({
     resolver: zodResolver(patientSchema),
     defaultValues: patient
       ? {
-          ...patient,
+          firstName: patient.firstName,
+          lastName: patient.lastName,
           dateOfBirth: new Date(patient.dateOfBirth).toISOString().split('T')[0],
+          gender: patient.gender,
+          email: patient.email || '',
+          phone: patient.phone || '',
+          address: patient.address || '',
+          medicalHistory: patient.medicalHistory || '',
+          allergies: patient.allergies?.join(', ') || '',
+          currentMedications: patient.currentMedications || '',
+          emergencyContact: patient.emergencyContact || '',
+          emergencyPhone: patient.emergencyPhone || '',
+          insuranceProvider: patient.insuranceProvider || '',
+          insuranceNumber: patient.insuranceNumber || '',
         }
       : {
           gender: 'MALE',
@@ -102,6 +114,7 @@ export default function PatientForm({
               { value: 'MALE', label: 'Male' },
               { value: 'FEMALE', label: 'Female' },
               { value: 'OTHER', label: 'Other' },
+              { value: 'UNKNOWN', label: 'Unknown' },
             ]}
           />
         </div>

@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
@@ -15,7 +14,6 @@ import {
 } from '@/services/patient.service';
 
 export default function PatientListPage() {
-  const navigate = useNavigate();
   const { showToast } = useToast();
   
   const [patients, setPatients] = useState<Patient[]>([]);

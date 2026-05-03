@@ -4,7 +4,6 @@ import {
   ClipboardDocumentCheckIcon,
   UserPlusIcon,
 } from '@heroicons/react/24/outline';
-import clsx from 'clsx';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import { RecentActivity } from '@/services/dashboard.service';

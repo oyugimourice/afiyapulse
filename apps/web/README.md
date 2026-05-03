@@ -1,191 +1,337 @@
 # AfiyaPulse Web Application
 
-Frontend application for AfiyaPulse - AI-powered clinical documentation automation.
+React-based frontend for the AfiyaPulse clinical documentation automation system.
+
+## Overview
+
+This is the web interface for AfiyaPulse, built with React 18, TypeScript, and Vite. It provides doctors with an intuitive interface for:
+
+- Patient management
+- Real-time consultation recording with AI transcription
+- AI-generated clinical documentation review and editing
+- Dashboard with analytics and insights
+- Appointment scheduling
+- Document generation (SOAP notes, prescriptions, referrals)
 
 ## Tech Stack
 
-- **Framework**: React 18.3+ with TypeScript
-- **Build Tool**: Vite 5.0+
-- **Styling**: Tailwind CSS 3.4+
+- **Framework**: React 18 with TypeScript
+- **Build Tool**: Vite 5
+- **Styling**: Tailwind CSS 3
 - **State Management**: Zustand
 - **Routing**: React Router v6
+- **Forms**: React Hook Form + Zod validation
 - **HTTP Client**: Axios
-- **Forms**: React Hook Form + Zod
+- **Real-time**: Socket.io Client
 - **Icons**: Heroicons
 
-## Getting Started
+## Monorepo Integration
+
+This app is part of the AfiyaPulse monorepo and uses shared packages:
+
+- `@afiyapulse/shared-types` - Shared TypeScript types and interfaces
+- Workspace dependencies are automatically linked via npm workspaces
+
+## Project Structure
+
+```
+apps/web/
+├── src/
+│   ├── components/       # Reusable UI components
+│   │   ├── layout/      # Layout components (Sidebar, MainLayout)
+│   │   ├── patients/    # Patient management components
+│   │   ├── review/      # Document review components
+│   │   └── ui/          # Base UI components (Button, Input, etc.)
+│   ├── pages/           # Page components
+│   │   ├── dashboard/   # Dashboard page
+│   │   ├── patients/    # Patient pages
+│   │   └── settings/    # Settings page
+│   ├── hooks/           # Custom React hooks
+│   ├── services/        # API service layer
+│   ├── store/           # Zustand stores
+│   ├── utils/           # Utility functions
+│   ├── App.tsx          # Root component
+│   └── main.tsx         # Entry point
+├── public/              # Static assets
+├── index.html           # HTML template
+├── vite.config.ts       # Vite configuration
+├── tailwind.config.js   # Tailwind CSS configuration
+└── tsconfig.json        # TypeScript configuration
+```
+
+## Development
 
 ### Prerequisites
 
-- Node.js 18+
-- npm 9+
+- Node.js 18+ and npm 9+
+- Running API server (see `apps/api`)
 
-### Installation
+### Environment Variables
+
+Create a `.env` file in `apps/web/`:
+
+```env
+VITE_API_URL=http://localhost:3001
+VITE_WS_URL=ws://localhost:3001
+```
+
+### Commands
+
+From the monorepo root:
 
 ```bash
 # Install dependencies
 npm install
 
-# Copy environment variables
-cp .env.example .env
+# Run web app only
+npm run dev:web
 
-# Start development server
+# Run both API and web
 npm run dev
+
+# Build web app
+npm run build:web
+
+# Preview production build
+cd apps/web && npm run preview
+
+# Type checking
+cd apps/web && npm run type-check
+
+# Linting
+cd apps/web && npm run lint
 ```
 
-The application will be available at `http://localhost:3000`
+From `apps/web/` directory:
 
-### Environment Variables
+```bash
+# Development server (port 3000)
+npm run dev
 
-Create a `.env` file in the root directory:
+# Production build
+npm run build
 
-```env
-VITE_API_URL=http://localhost:8080
-VITE_WS_URL=ws://localhost:8080
-VITE_APP_NAME=AfiyaPulse
-VITE_APP_VERSION=1.0.0
-VITE_ENABLE_ANALYTICS=false
-VITE_ENABLE_DEBUG=true
+# Preview production build
+npm run preview
+
+# Type checking
+npm run type-check
+
+# Linting
+npm run lint
+
+# Clean build artifacts
+npm run clean
 ```
-
-## Available Scripts
-
-- `npm run dev` - Start development server
-- `npm run build` - Build for production
-- `npm run preview` - Preview production build
-- `npm run lint` - Run ESLint
-- `npm run type-check` - Run TypeScript type checking
-
-## Project Structure
-
-```sh
-src/
-├── components/       # Reusable UI components
-│   ├── layout/      # Layout components (Sidebar, TopBar, etc.)
-│   └── ui/          # UI components (Button, Input, etc.)
-├── pages/           # Page components
-│   ├── auth/        # Authentication pages
-│   ├── dashboard/   # Dashboard pages
-│   ├── patients/    # Patient management pages
-│   ├── consultations/ # Consultation pages
-│   ├── review/      # Review panel pages
-│   └── settings/    # Settings pages
-├── hooks/           # Custom React hooks
-├── services/        # API services
-├── store/           # Zustand stores
-├── types/           # TypeScript type definitions
-├── utils/           # Utility functions
-├── App.tsx          # Main app component
-├── main.tsx         # Entry point
-└── index.css        # Global styles
-```
-
-## Features
-
-### Implemented
-
-- ✅ Project setup with Vite + React + TypeScript
-- ✅ Tailwind CSS configuration
-- ✅ Authentication system (login/register)
-- ✅ Protected routes
-- ✅ Main layout with sidebar and top bar
-- ✅ API client with token refresh
-- ✅ State management with Zustand
-
-### In Progress
-
-- 🚧 Dashboard with analytics
-- 🚧 Patient management
-- 🚧 Consultation recording interface
-- 🚧 Review panel
-- 🚧 Real-time features with WebSocket
-
-### Planned
-
-- 📋 Audio recording and streaming
-- 📋 Real-time transcription display
-- 📋 Document generation preview
-- 📋 Notification system
-- 📋 Advanced search and filtering
-- 📋 Reporting and analytics
-
-## Development Guidelines
-
-### Code Style
-
-- Use TypeScript for all new files
-- Follow React best practices and hooks guidelines
-- Use functional components with hooks
-- Implement proper error handling
-- Add loading states for async operations
-- Use Tailwind CSS utility classes for styling
-
-### Component Guidelines
-
-- Keep components small and focused
-- Extract reusable logic into custom hooks
-- Use proper TypeScript types
-- Add JSDoc comments for complex components
-- Implement proper accessibility (a11y)
-
-### State Management
-
-- Use Zustand for global state
-- Use React hooks (useState, useEffect) for local state
-- Persist auth state to localStorage
-- Implement proper error boundaries
 
 ## API Integration
 
-The frontend communicates with the backend API at `http://localhost:8080/api`.
+The web app connects to the API server via:
 
-### Authentication
+- **REST API**: Proxied through Vite dev server (`/api/*` → `http://localhost:3001`)
+- **WebSocket**: Direct connection for real-time updates (`ws://localhost:3001`)
 
-- `POST /api/auth/login` - User login
-- `POST /api/auth/register` - User registration
-- `POST /api/auth/refresh` - Token refresh
-- `POST /api/auth/logout` - User logout
-- `GET /api/auth/me` - Get current user
+### API Services
 
-### Patients
+All API interactions are abstracted through service modules:
 
-- `GET /api/patients` - List patients
-- `GET /api/patients/:id` - Get patient details
-- `POST /api/patients` - Create patient
-- `PUT /api/patients/:id` - Update patient
+- `auth.service.ts` - Authentication (login, register, logout)
+- `patient.service.ts` - Patient CRUD operations
+- `consultation.service.ts` - Consultation management
+- `review.service.ts` - Document review and approval
+- `dashboard.service.ts` - Dashboard statistics
+- `pdf.service.ts` - PDF generation and download
 
-### Consultations
+## Features
 
-- `POST /api/consultations` - Start consultation
-- `GET /api/consultations/:id` - Get consultation details
-- `PUT /api/consultations/:id/end` - End consultation
+### 1. Authentication
+- JWT-based authentication
+- Role-based access control (Doctor, Admin)
+- Secure token storage
+- Auto-refresh on token expiry
 
-### WebSocket
+### 2. Patient Management
+- Patient registration and profile management
+- Medical history tracking
+- Search and filtering
+- Patient detail view with consultation history
 
-Real-time updates are handled via WebSocket connection at `ws://localhost:8080/ws`.
+### 3. Consultation Recording
+- Real-time audio recording
+- Live transcription display
+- AI agent status monitoring
+- WebSocket-based updates
 
-Events:
+### 4. Document Review Panel
+- SOAP note review and editing
+- Prescription review with drug database integration
+- Referral letter review
+- Batch approval workflow
+- Real-time agent status indicators
 
-- `transcript:update` - Real-time transcription updates
-- `agent:status` - Agent processing status
-- `document:generated` - Document generation complete
+### 5. Dashboard
+- Statistics overview (patients, consultations, pending reviews)
+- Recent activity feed
+- Quick actions
+- Performance metrics
 
-## Deployment
+### 6. Document Generation
+- PDF generation for SOAP notes, prescriptions, referrals
+- Batch PDF generation
+- Download and preview functionality
 
-### Build for Production
+## Path Aliases
+
+The project uses TypeScript path aliases for cleaner imports:
+
+```typescript
+import { Button } from '@/components/ui/Button';
+import { useAuth } from '@/hooks/useAuth';
+import { patientService } from '@/services/patient.service';
+```
+
+Available aliases:
+- `@/*` → `./src/*`
+- `@/components/*` → `./src/components/*`
+- `@/pages/*` → `./src/pages/*`
+- `@/hooks/*` → `./src/hooks/*`
+- `@/services/*` → `./src/services/*`
+- `@/store/*` → `./src/store/*`
+- `@/utils/*` → `./src/utils/*`
+
+## State Management
+
+Uses Zustand for lightweight state management:
+
+- `authStore.ts` - Authentication state (user, token, login/logout)
+- Additional stores can be added as needed
+
+## Real-time Features
+
+WebSocket integration for live updates:
+
+- Consultation transcription updates
+- Agent status changes
+- Document generation progress
+- System notifications
+
+## Styling
+
+Tailwind CSS with custom configuration:
+
+- Custom color palette matching medical theme
+- Responsive design utilities
+- Custom components with consistent styling
+- Dark mode support (planned)
+
+## Type Safety
+
+Full TypeScript coverage with:
+
+- Shared types from `@afiyapulse/shared-types`
+- Strict type checking enabled
+- Zod schemas for runtime validation
+- Type-safe API responses
+
+## Testing
+
+Testing setup (to be implemented):
 
 ```bash
+# Run tests
+npm run test
+
+# Watch mode
+npm run test:watch
+
+# Coverage
+npm run test:coverage
+```
+
+## Build & Deployment
+
+### Production Build
+
+```bash
+# From monorepo root
+npm run build:web
+
+# Or from apps/web
 npm run build
 ```
 
-The build output will be in the `dist/` directory.
+Build output: `apps/web/dist/`
 
-### Preview Production Build
+### Deployment Options
+
+1. **Static Hosting** (Vercel, Netlify, Cloudflare Pages)
+   - Deploy `dist/` folder
+   - Configure environment variables
+   - Set up API proxy or CORS
+
+2. **Docker** (with nginx)
+   - Build production bundle
+   - Serve with nginx
+   - Configure reverse proxy to API
+
+3. **CDN** (AWS S3 + CloudFront)
+   - Upload `dist/` to S3
+   - Configure CloudFront distribution
+   - Set up API Gateway integration
+
+## Browser Support
+
+- Chrome/Edge (latest 2 versions)
+- Firefox (latest 2 versions)
+- Safari (latest 2 versions)
+
+## Performance
+
+- Code splitting with React.lazy
+- Route-based lazy loading
+- Optimized bundle size
+- Asset optimization with Vite
+
+## Security
+
+- XSS protection via React
+- CSRF token handling
+- Secure token storage
+- Input sanitization
+- Content Security Policy headers
+
+## Contributing
+
+1. Follow the existing code structure
+2. Use TypeScript for all new code
+3. Follow the component naming conventions
+4. Add proper TypeScript types
+5. Test thoroughly before committing
+
+## Troubleshooting
+
+### Port Already in Use
 
 ```bash
-npm run preview
+# Kill process on port 3000
+npx kill-port 3000
+```
+
+### API Connection Issues
+
+- Verify API server is running on port 3001
+- Check `.env` configuration
+- Verify proxy settings in `vite.config.ts`
+
+### Build Errors
+
+```bash
+# Clean and reinstall
+npm run clean
+npm install
+npm run build
 ```
 
 ## License
 
-Copyright © 2026 AfiyaPulse. All rights reserved.
+Proprietary - AfiyaPulse

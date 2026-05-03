@@ -9,7 +9,11 @@
   ],
   "scripts": {
     "dev": "turbo run dev",
+    "dev:api": "turbo run dev --filter=@afiyapulse/api",
+    "dev:web": "turbo run dev --filter=@afiyapulse/web",
     "build": "turbo run build",
+    "build:api": "turbo run build --filter=@afiyapulse/api",
+    "build:web": "turbo run build --filter=@afiyapulse/web",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",

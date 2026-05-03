@@ -224,7 +224,7 @@ export default function PatientDetailPage() {
             <div>
               <label className="text-sm font-medium text-secondary-500">Allergies</label>
               <p className="mt-1 text-secondary-900 whitespace-pre-wrap">
-                {patient.allergies}
+                {patient.allergies.join(', ')}
               </p>
             </div>
           )}

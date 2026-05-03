@@ -25,7 +25,7 @@ export interface CreatePatientData {
   firstName: string;
   lastName: string;
   dateOfBirth: string;
-  gender: 'MALE' | 'FEMALE' | 'OTHER';
+  gender: 'MALE' | 'FEMALE' | 'OTHER' | 'UNKNOWN';
   email?: string;
   phone: string;
   address?: string;
