@@ -9,7 +9,7 @@ import AuthLayout from '@/components/layout/AuthLayout';
 import LoginPage from '@/pages/auth/LoginPage';
 import RegisterPage from '@/pages/auth/RegisterPage';
 import DashboardPage from '@/pages/dashboard/DashboardPage';
-import PatientsPage from '@/pages/patients/PatientsPage';
+import PatientListPage from '@/pages/patients/PatientListPage';
 import PatientDetailPage from '@/pages/patients/PatientDetailPage';
 import NewConsultationPage from '@/pages/consultations/NewConsultationPage';
 import ConsultationHistoryPage from '@/pages/consultations/ConsultationHistoryPage';
@@ -78,7 +78,7 @@ function App() {
           <Route path="dashboard" element={<DashboardPage />} />
           
           {/* Patients */}
-          <Route path="patients" element={<PatientsPage />} />
+          <Route path="patients" element={<PatientListPage />} />
           <Route path="patients/:id" element={<PatientDetailPage />} />
           
           {/* Consultations */}
