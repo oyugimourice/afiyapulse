@@ -10,6 +10,7 @@ import {
   TranscriptDisplay,
   PatientSelector,
 } from '@/components/consultation';
+import { AgentStatusDisplay } from '@/components/review';
 import {
   consultationService,
   Consultation,
@@ -106,7 +107,7 @@ export default function NewConsultationPage() {
       setIsCompleting(true);
       await consultationService.completeConsultation(consultation.id);
       showToast('Consultation completed successfully', 'success');
-      navigate('/review');
+      navigate(`/review?consultation=${consultation.id}`);
     } catch (error) {
       showToast('Failed to complete consultation', 'error');
       console.error('Error completing consultation:', error);
@@ -253,30 +254,8 @@ export default function NewConsultationPage() {
             </div>
           </div>
 
-          {/* Agent Status (Placeholder for Phase 3.2) */}
-          <Card>
-            <div className="text-center py-8">
-              <svg
-                className="mx-auto h-12 w-12 text-secondary-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-              <h3 className="mt-2 text-sm font-medium text-secondary-900">
-                AI Agents Processing
-              </h3>
-              <p className="mt-1 text-sm text-secondary-500">
-                Real-time agent status will appear here
-              </p>
-            </div>
-          </Card>
+          {/* Agent Status Display */}
+          <AgentStatusDisplay consultationId={consultation.id} />
         </>
       )}
 
