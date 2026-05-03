@@ -214,7 +214,7 @@ export const requestSizeLimit = (maxSize: number = 10 * 1024 * 1024) => {
       });
     }
     
-    next();
+    return next();
   };
 };
 

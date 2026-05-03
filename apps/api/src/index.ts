@@ -1,14 +1,12 @@
-import dotenv from 'dotenv';
-import { createApp } from './app';
+import './config/env';
 import logger from './config/logger';
-
-// Load environment variables
-dotenv.config();
 
 const PORT = process.env.PORT || 4000;
 
 async function startServer() {
   try {
+    const { createApp } = await import('./app');
+
     // Create Express app with HTTP and WebSocket servers
     const { app, httpServer, io } = createApp();
 

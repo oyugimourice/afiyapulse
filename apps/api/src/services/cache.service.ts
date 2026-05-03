@@ -1,4 +1,4 @@
-import redisClient from '../config/redis';
+import redisClient, { isConnected } from '../config/redis';
 import logger from '../config/logger';
 
 /**
@@ -55,6 +55,10 @@ class CacheService {
     value: any,
     options: CacheOptions = {}
   ): Promise<void> {
+    if (!isConnected) {
+      return; // Silently skip if Redis is not connected
+    }
+    
     try {
       const { ttl = CacheTTL.MEDIUM, prefix = '' } = options;
       const cacheKey = prefix ? this.generateKey(prefix, key) : key;
@@ -77,6 +81,10 @@ class CacheService {
    * Get a value from cache
    */
   async get<T>(key: string, options: CacheOptions = {}): Promise<T | null> {
+    if (!isConnected) {
+      return null; // Return null if Redis is not connected
+    }
+    
     try {
       const { prefix = '' } = options;
       const cacheKey = prefix ? this.generateKey(prefix, key) : key;
@@ -99,6 +107,10 @@ class CacheService {
    * Delete a value from cache
    */
   async delete(key: string, options: CacheOptions = {}): Promise<void> {
+    if (!isConnected) {
+      return; // Silently skip if Redis is not connected
+    }
+    
     try {
       const { prefix = '' } = options;
       const cacheKey = prefix ? this.generateKey(prefix, key) : key;
@@ -113,6 +125,10 @@ class CacheService {
    * Delete multiple keys matching a pattern
    */
   async deletePattern(pattern: string): Promise<void> {
+    if (!isConnected) {
+      return; // Silently skip if Redis is not connected
+    }
+    
     try {
       const keys = await redisClient.keys(pattern);
       if (keys.length > 0) {
@@ -128,6 +144,10 @@ class CacheService {
    * Check if a key exists in cache
    */
   async exists(key: string, options: CacheOptions = {}): Promise<boolean> {
+    if (!isConnected) {
+      return false; // Return false if Redis is not connected
+    }
+    
     try {
       const { prefix = '' } = options;
       const cacheKey = prefix ? this.generateKey(prefix, key) : key;
@@ -166,6 +186,10 @@ class CacheService {
     key: string,
     options: CacheOptions = {}
   ): Promise<number> {
+    if (!isConnected) {
+      return 0; // Return 0 if Redis is not connected (effectively no rate limiting)
+    }
+    
     try {
       const { ttl = CacheTTL.SHORT, prefix = '' } = options;
       const cacheKey = prefix ? this.generateKey(prefix, key) : key;
@@ -188,6 +212,10 @@ class CacheService {
    * Get TTL (time to live) for a key
    */
   async getTTL(key: string, options: CacheOptions = {}): Promise<number> {
+    if (!isConnected) {
+      return -1; // Return -1 if Redis is not connected
+    }
+    
     try {
       const { prefix = '' } = options;
       const cacheKey = prefix ? this.generateKey(prefix, key) : key;
@@ -206,6 +234,10 @@ class CacheService {
     ttl: number,
     options: CacheOptions = {}
   ): Promise<void> {
+    if (!isConnected) {
+      return; // Silently skip if Redis is not connected
+    }
+    
     try {
       const { prefix = '' } = options;
       const cacheKey = prefix ? this.generateKey(prefix, key) : key;
@@ -453,6 +485,11 @@ class CacheService {
    * Clear all cache (use with caution)
    */
   async clearAll(): Promise<void> {
+    if (!isConnected) {
+      logger.warn('Cache: Cannot clear - Redis not connected');
+      return;
+    }
+    
     try {
       await redisClient.flushDb();
       logger.warn('Cache: All keys cleared');
@@ -469,6 +506,14 @@ class CacheService {
     memoryUsed: string;
     hitRate: string;
   }> {
+    if (!isConnected) {
+      return {
+        totalKeys: 0,
+        memoryUsed: 'N/A (Redis not connected)',
+        hitRate: 'N/A',
+      };
+    }
+    
     try {
       const info = await redisClient.info('stats');
       const dbSize = await redisClient.dbSize();

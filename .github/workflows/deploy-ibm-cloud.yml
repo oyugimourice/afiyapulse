@@ -1,0 +1,292 @@
+name: Deploy to IBM Cloud
+
+on:
+  push:
+    branches:
+      - main
+      - production
+  workflow_dispatch:
+
+env:
+  IBM_CLOUD_REGION: us-south
+  IBM_CLOUD_RESOURCE_GROUP: Default
+  CODE_ENGINE_PROJECT: afiyapulse
+  APP_NAME: afiyapulse-api
+  REGISTRY_NAMESPACE: afiyapulse
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Generate Prisma Client
+        run: npm run db:generate
+
+      - name: Run linter
+        run: npm run lint
+
+      - name: Run tests
+        run: npm run test
+        env:
+          DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+          REDIS_URL: ${{ secrets.TEST_REDIS_URL }}
+
+  build-and-deploy:
+    name: Build and Deploy to IBM Cloud
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/production'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install IBM Cloud CLI
+        run: |
+          curl -fsSL https://clis.cloud.ibm.com/install/linux | sh
+          ibmcloud --version
+          ibmcloud config --check-version=false
+          ibmcloud plugin install code-engine -f
+          ibmcloud plugin install container-registry -f
+
+      - name: Authenticate with IBM Cloud
+        run: |
+          ibmcloud login --apikey ${{ secrets.IBM_CLOUD_API_KEY }} \
+            -r ${{ env.IBM_CLOUD_REGION }} \
+            -g ${{ env.IBM_CLOUD_RESOURCE_GROUP }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to IBM Container Registry
+        run: |
+          ibmcloud cr login
+          ibmcloud cr region-set ${{ env.IBM_CLOUD_REGION }}
+
+      - name: Create namespace if not exists
+        run: |
+          ibmcloud cr namespace-add ${{ env.REGISTRY_NAMESPACE }} || true
+
+      - name: Build and push Docker image
+        run: |
+          IMAGE_TAG="${{ github.sha }}"
+          IMAGE_NAME="us.icr.io/${{ env.REGISTRY_NAMESPACE }}/${{ env.APP_NAME }}:${IMAGE_TAG}"
+          IMAGE_LATEST="us.icr.io/${{ env.REGISTRY_NAMESPACE }}/${{ env.APP_NAME }}:latest"
+          
+          docker build -t ${IMAGE_NAME} -t ${IMAGE_LATEST} .
+          docker push ${IMAGE_NAME}
+          docker push ${IMAGE_LATEST}
+          
+          echo "IMAGE_NAME=${IMAGE_NAME}" >> $GITHUB_ENV
+
+      - name: Select Code Engine project
+        run: |
+          ibmcloud ce project select --name ${{ env.CODE_ENGINE_PROJECT }}
+
+      - name: Create or update ConfigMap
+        run: |
+          ibmcloud ce configmap create --name afiyapulse-config \
+            --from-literal NODE_ENV=production \
+            --from-literal PORT=8080 \
+            --from-literal LOG_LEVEL=info \
+            --from-literal ENABLE_MCP_SERVERS=true \
+            --from-literal ENABLE_DRUG_DATABASE=true \
+            --from-literal ENABLE_FHIR_EHR=true \
+            --from-literal ENABLE_APPOINTMENTS=true \
+            --from-literal AWS_REGION=${{ secrets.AWS_REGION }} \
+            --from-literal AWS_S3_BUCKET=${{ secrets.AWS_S3_BUCKET }} \
+            --from-literal AWS_ENDPOINT=${{ secrets.AWS_ENDPOINT }} \
+            --from-literal WATSON_STT_URL=${{ secrets.WATSON_STT_URL }} \
+            --from-literal OPENAI_MODEL=${{ secrets.OPENAI_MODEL }} \
+            --from-literal FRONTEND_URL=${{ secrets.FRONTEND_URL }} \
+            --from-literal BACKEND_URL=${{ secrets.BACKEND_URL }} \
+            --from-literal CORS_ORIGIN=${{ secrets.CORS_ORIGIN }} \
+            --from-literal RATE_LIMIT_WINDOW_MS=60000 \
+            --from-literal RATE_LIMIT_MAX_REQUESTS=100 \
+            --force || \
+          ibmcloud ce configmap update --name afiyapulse-config \
+            --from-literal NODE_ENV=production \
+            --from-literal PORT=8080 \
+            --from-literal LOG_LEVEL=info \
+            --from-literal ENABLE_MCP_SERVERS=true \
+            --from-literal ENABLE_DRUG_DATABASE=true \
+            --from-literal ENABLE_FHIR_EHR=true \
+            --from-literal ENABLE_APPOINTMENTS=true \
+            --from-literal AWS_REGION=${{ secrets.AWS_REGION }} \
+            --from-literal AWS_S3_BUCKET=${{ secrets.AWS_S3_BUCKET }} \
+            --from-literal AWS_ENDPOINT=${{ secrets.AWS_ENDPOINT }} \
+            --from-literal WATSON_STT_URL=${{ secrets.WATSON_STT_URL }} \
+            --from-literal OPENAI_MODEL=${{ secrets.OPENAI_MODEL }} \
+            --from-literal FRONTEND_URL=${{ secrets.FRONTEND_URL }} \
+            --from-literal BACKEND_URL=${{ secrets.BACKEND_URL }} \
+            --from-literal CORS_ORIGIN=${{ secrets.CORS_ORIGIN }} \
+            --from-literal RATE_LIMIT_WINDOW_MS=60000 \
+            --from-literal RATE_LIMIT_MAX_REQUESTS=100
+
+      - name: Create or update Secret
+        run: |
+          ibmcloud ce secret create --name afiyapulse-secrets \
+            --from-literal DATABASE_URL="${{ secrets.DATABASE_URL }}" \
+            --from-literal DIRECT_URL="${{ secrets.DIRECT_URL }}" \
+            --from-literal REDIS_URL="${{ secrets.REDIS_URL }}" \
+            --from-literal JWT_SECRET="${{ secrets.JWT_SECRET }}" \
+            --from-literal JWT_EXPIRES_IN="${{ secrets.JWT_EXPIRES_IN }}" \
+            --from-literal JWT_REFRESH_EXPIRES_IN="${{ secrets.JWT_REFRESH_EXPIRES_IN }}" \
+            --from-literal SESSION_SECRET="${{ secrets.SESSION_SECRET }}" \
+            --from-literal WATSON_STT_API_KEY="${{ secrets.WATSON_STT_API_KEY }}" \
+            --from-literal OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}" \
+            --from-literal AWS_ACCESS_KEY_ID="${{ secrets.AWS_ACCESS_KEY_ID }}" \
+            --from-literal AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}" \
+            --force || \
+          ibmcloud ce secret update --name afiyapulse-secrets \
+            --from-literal DATABASE_URL="${{ secrets.DATABASE_URL }}" \
+            --from-literal DIRECT_URL="${{ secrets.DIRECT_URL }}" \
+            --from-literal REDIS_URL="${{ secrets.REDIS_URL }}" \
+            --from-literal JWT_SECRET="${{ secrets.JWT_SECRET }}" \
+            --from-literal JWT_EXPIRES_IN="${{ secrets.JWT_EXPIRES_IN }}" \
+            --from-literal JWT_REFRESH_EXPIRES_IN="${{ secrets.JWT_REFRESH_EXPIRES_IN }}" \
+            --from-literal SESSION_SECRET="${{ secrets.SESSION_SECRET }}" \
+            --from-literal WATSON_STT_API_KEY="${{ secrets.WATSON_STT_API_KEY }}" \
+            --from-literal OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}" \
+            --from-literal AWS_ACCESS_KEY_ID="${{ secrets.AWS_ACCESS_KEY_ID }}" \
+            --from-literal AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+
+      - name: Deploy to Code Engine
+        run: |
+          # Check if application exists
+          if ibmcloud ce application get --name ${{ env.APP_NAME }} > /dev/null 2>&1; then
+            echo "Updating existing application..."
+            ibmcloud ce application update \
+              --name ${{ env.APP_NAME }} \
+              --image ${{ env.IMAGE_NAME }} \
+              --env-from-configmap afiyapulse-config \
+              --env-from-secret afiyapulse-secrets \
+              --cpu 1 \
+              --memory 2G \
+              --min-scale 1 \
+              --max-scale 5 \
+              --port 8080 \
+              --concurrency 100 \
+              --concurrency-target 80 \
+              --timeout 300 \
+              --wait
+          else
+            echo "Creating new application..."
+            ibmcloud ce application create \
+              --name ${{ env.APP_NAME }} \
+              --image ${{ env.IMAGE_NAME }} \
+              --env-from-configmap afiyapulse-config \
+              --env-from-secret afiyapulse-secrets \
+              --cpu 1 \
+              --memory 2G \
+              --min-scale 1 \
+              --max-scale 5 \
+              --port 8080 \
+              --concurrency 100 \
+              --concurrency-target 80 \
+              --timeout 300 \
+              --wait
+          fi
+
+      - name: Get application URL
+        id: get-url
+        run: |
+          APP_URL=$(ibmcloud ce application get --name ${{ env.APP_NAME }} --output json | jq -r '.status.url')
+          echo "Application URL: ${APP_URL}"
+          echo "app_url=${APP_URL}" >> $GITHUB_OUTPUT
+
+      - name: Run database migrations
+        run: |
+          echo "Running database migrations..."
+          ibmcloud ce job create --name afiyapulse-migrate \
+            --image ${{ env.IMAGE_NAME }} \
+            --env-from-configmap afiyapulse-config \
+            --env-from-secret afiyapulse-secrets \
+            --cpu 0.5 \
+            --memory 1G \
+            --command "npm" \
+            --argument "run" \
+            --argument "db:migrate" \
+            --wait \
+            --force || true
+          
+          ibmcloud ce jobrun submit --job afiyapulse-migrate --wait
+
+      - name: Health check
+        run: |
+          echo "Waiting for application to be ready..."
+          sleep 30
+          
+          APP_URL="${{ steps.get-url.outputs.app_url }}"
+          HEALTH_URL="${APP_URL}/health"
+          
+          echo "Checking health endpoint: ${HEALTH_URL}"
+          
+          for i in {1..10}; do
+            if curl -f -s "${HEALTH_URL}" > /dev/null; then
+              echo "✅ Application is healthy!"
+              curl -s "${HEALTH_URL}" | jq .
+              exit 0
+            fi
+            echo "Attempt $i failed, retrying in 10 seconds..."
+            sleep 10
+          done
+          
+          echo "❌ Health check failed after 10 attempts"
+          exit 1
+
+      - name: Deployment summary
+        run: |
+          echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Application**: ${{ env.APP_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image**: ${{ env.IMAGE_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **URL**: ${{ steps.get-url.outputs.app_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Region**: ${{ env.IBM_CLOUD_REGION }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Health Check" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          curl -s "${{ steps.get-url.outputs.app_url }}/health" | jq . >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  notify:
+    name: Notify Deployment Status
+    runs-on: ubuntu-latest
+    needs: build-and-deploy
+    if: always()
+    
+    steps:
+      - name: Deployment Success
+        if: needs.build-and-deploy.result == 'success'
+        run: |
+          echo "✅ Deployment successful!"
+          # Add Slack/email notification here if needed
+
+      - name: Deployment Failed
+        if: needs.build-and-deploy.result == 'failure'
+        run: |
+          echo "❌ Deployment failed!"
+          # Add Slack/email notification here if needed
+          exit 1
+
+# Made with Bob

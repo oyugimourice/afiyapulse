@@ -5,8 +5,29 @@ import llmService from '../services/llm.service';
 import mcpClient from '../services/mcp-client.service';
 import logger from '../config/logger';
 
+// Enum for appointment types
+enum AppointmentType {
+  FOLLOW_UP = 'FOLLOW_UP',
+  LAB_WORK = 'LAB_WORK',
+  IMAGING = 'IMAGING',
+  SPECIALIST = 'SPECIALIST',
+  PROCEDURE = 'PROCEDURE',
+}
+
+// Discriminated union for follow-up intent
+type FollowUpIntent =
+  | { needed: false }
+  | {
+      needed: true;
+      type: AppointmentType;
+      timeframe?: string;
+      duration?: number;
+      reason?: string;
+      instructions?: string;
+    };
+
 interface FollowUpOutput {
-  type: 'FOLLOW_UP' | 'LAB_WORK' | 'IMAGING' | 'SPECIALIST' | 'PROCEDURE';
+  type: AppointmentType;
   scheduledAt: string;
   reason: string;
   instructions: string;
@@ -15,117 +36,26 @@ interface FollowUpOutput {
   doctorName: string;
 }
 
+// Type for availability slot
+interface AvailabilitySlot {
+  scheduledAt: string;
+  doctorId: string;
+  doctorName: string;
+}
+
+// Type for patient details
+interface PatientDetails {
+  firstName: string;
+  lastName: string;
+}
+
+
 export class FollowUpSchedulerAgent extends BaseAgent {
-  constructor() {
-    super({
-      name: 'Follow-up Scheduler',
-      type: AgentType.FOLLOWUP,
-      description: 'Schedules follow-up appointments automatically',
-      model: process.env.FOLLOWUP_MODEL || 'gpt-4',
-      temperature: 0.2, // Low temperature for accurate scheduling
-      maxTokens: 1500,
-    });
-  }
+  // Default values for follow-up scheduling
+  private readonly DEFAULT_TIMEFRAME = '2 weeks';
 
-  /**
-   * Process consultation and schedule follow-up if needed
-   */
-  async process(context: AgentContext): Promise<FollowUpOutput | null> {
-    try {
-      this.validateContext(context);
-      this.updateStatus(AgentStatus.PROCESSING, 'Analyzing consultation for follow-up needs');
-
-      // Extract transcript text
-      const transcriptText = this.extractTranscriptText(context);
-
-      // Detect if follow-up is needed
-      const followUpIntent = await this.detectFollowUpIntent(transcriptText);
-
-      if (!followUpIntent.needed) {
-        this.updateStatus(AgentStatus.COMPLETED, 'No follow-up appointment needed');
-        return null;
-      }
-
-      // Get patient information
-      const patient = await prisma.patient.findUnique({
-        where: { id: context.patientId },
-        select: {
-          firstName: true,
-          lastName: true,
-        },
-      });
-
-      if (!patient) {
-        throw new Error('Patient not found');
-      }
-
-      // Check doctor availability
-      this.updateStatus(AgentStatus.PROCESSING, 'Checking doctor availability');
-      const availability = await this.findAvailableSlot(
-        followUpIntent.timeframe || '2 weeks',
-        followUpIntent.duration || 30,
-        context.doctorId
-      );
-
-      if (!availability) {
-        throw new Error('No available slots found for follow-up appointment');
-      }
-
-      // Book the appointment
-      this.updateStatus(AgentStatus.PROCESSING, 'Booking follow-up appointment');
-      const appointment = await mcpClient.bookAppointment({
-        patientId: context.patientId,
-        patientName: `${patient.firstName} ${patient.lastName}`,
-        doctorId: availability.doctorId,
-        scheduledAt: availability.scheduledAt,
-        type: followUpIntent.type || 'FOLLOW_UP',
-        duration: followUpIntent.duration || 30,
-        reason: followUpIntent.reason,
-        notes: followUpIntent.instructions,
-      });
-
-      // Save to database
-      this.updateStatus(AgentStatus.PROCESSING, 'Saving appointment');
-      await prisma.appointment.create({
-        data: {
-          consultationId: context.consultationId,
-          patientId: context.patientId,
-          scheduledAt: new Date(appointment.scheduledAt),
-          type: appointment.type,
-          reason: appointment.reason,
-          isApproved: false,
-        },
-      });
-
-      this.updateStatus(AgentStatus.COMPLETED, 'Follow-up appointment scheduled successfully');
-
-      return {
-        type: followUpIntent.type || 'FOLLOW_UP',
-        scheduledAt: availability.scheduledAt,
-        reason: followUpIntent.reason || 'Follow-up appointment',
-        instructions: followUpIntent.instructions || '',
-        duration: followUpIntent.duration || 30,
-        doctorId: availability.doctorId,
-        doctorName: availability.doctorName,
-      };
-    } catch (error) {
-      this.handleError(error as Error, 'Failed to schedule follow-up');
-      throw error;
-    }
-  }
-
-  /**
-   * Detect if a follow-up appointment is needed
-   */
-  private async detectFollowUpIntent(transcriptText: string): Promise<{
-    needed: boolean;
-    type?: 'FOLLOW_UP' | 'LAB_WORK' | 'IMAGING' | 'SPECIALIST' | 'PROCEDURE';
-    timeframe?: string;
-    duration?: number;
-    reason?: string;
-    instructions?: string;
-  }> {
-    const systemPrompt = `You are a medical AI assistant analyzing doctor-patient consultations.
+  // System prompt for follow-up detection
+  private static readonly FOLLOW_UP_DETECTION_SYSTEM_PROMPT = `You are a medical AI assistant analyzing doctor-patient consultations.
 Your task is to detect if the doctor schedules a follow-up appointment or any medical procedure.
 
 Look for phrases like:
@@ -154,17 +84,241 @@ Respond ONLY with valid JSON in this exact format:
   "instructions": "string or null"
 }`;
 
-    const prompt = `Analyze this consultation transcript and detect follow-up appointment intent:
+  // Default durations by appointment type (in minutes)
+  private static readonly DEFAULT_DURATIONS: Record<AppointmentType, number> = {
+    [AppointmentType.FOLLOW_UP]: 30,
+    [AppointmentType.LAB_WORK]: 15,
+    [AppointmentType.IMAGING]: 45,
+    [AppointmentType.SPECIALIST]: 45,
+    [AppointmentType.PROCEDURE]: 45,
+  };
 
-${transcriptText}
+  constructor() {
+    super({
+      name: 'Follow-up Scheduler',
+      type: AgentType.FOLLOWUP,
+      description: 'Schedules follow-up appointments automatically',
+      model: process.env.FOLLOWUP_MODEL || 'gpt-4',
+      temperature: 0.2, // Low temperature for accurate scheduling
+      maxTokens: 1500,
+    });
+  }
 
-Respond with JSON only.`;
+  /**
+   * Process consultation and schedule follow-up if needed
+   * Refactored with saga pattern for transactional integrity
+   */
+  async process(context: AgentContext): Promise<FollowUpOutput | null> {
+    try {
+      this.validateContext(context);
+      this.updateStatus(AgentStatus.PROCESSING, 'Analyzing consultation for follow-up needs');
+
+      // Step 1: Detect follow-up intent
+      const transcriptText = this.extractTranscriptText(context);
+      const followUpIntent = await this.detectFollowUpIntent(transcriptText);
+
+      if (!followUpIntent.needed) {
+        this.updateStatus(AgentStatus.COMPLETED, 'No follow-up appointment needed');
+        return null;
+      }
+
+      // Step 2: Gather required data
+      const patient = await this.fetchPatientDetails(context.patientId);
+      const normalizedIntent = this.normalizeFollowUpIntent(followUpIntent);
+
+      // Step 3: Find availability
+      this.updateStatus(AgentStatus.PROCESSING, 'Checking availability and booking appointment');
+      const availability = await this.findAvailableSlot(
+        followUpIntent.timeframe || this.DEFAULT_TIMEFRAME,
+        normalizedIntent.duration,
+        context.doctorId
+      );
+
+      if (!availability) {
+        throw new Error('No available slots found for follow-up appointment');
+      }
+
+      // Step 4: Book and persist with saga pattern (includes automatic rollback on failure)
+      await this.bookAndPersistAppointment(context, patient, availability, normalizedIntent);
+
+      this.updateStatus(AgentStatus.COMPLETED, 'Follow-up appointment scheduled successfully');
+
+      return {
+        ...normalizedIntent,
+        scheduledAt: availability.scheduledAt,
+        doctorId: availability.doctorId,
+        doctorName: availability.doctorName,
+      };
+    } catch (error) {
+      this.handleError(error as Error, 'Failed to schedule follow-up');
+      throw error;
+    }
+  }
+
+  /**
+   * Fetch patient details from database
+   */
+  private async fetchPatientDetails(patientId: string): Promise<PatientDetails> {
+    const patient = await prisma.patient.findUnique({
+      where: { id: patientId },
+      select: {
+        firstName: true,
+        lastName: true,
+      },
+    });
+
+    if (!patient) {
+      throw new Error('Patient not found');
+    }
+
+    return patient;
+  }
+
+  /**
+   * Log orphaned appointment details for manual cleanup
+   */
+  private logOrphanedAppointment(
+    appointment: { id: string; scheduledAt: string; type: string },
+    patientId: string,
+    error: unknown
+  ): void {
+    logger.error('Database save failed after MCP booking - orphaned appointment created', {
+      appointmentId: appointment.id,
+      patientId,
+      scheduledAt: appointment.scheduledAt,
+      type: appointment.type,
+      mcpBookingSuccess: true,
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+  }
+
+  /**
+   * Create enriched error for orphaned appointment
+   */
+  private createOrphanedAppointmentError(appointmentId: string, originalError: unknown): Error {
+    const error = new Error(
+      `Failed to save appointment to database. Orphaned booking ID: ${appointmentId}. Manual cleanup required.`
+    );
+    (error as any).appointmentId = appointmentId;
+    (error as any).originalError = originalError;
+    return error;
+  }
+
+  /**
+   * Attempt to cancel an MCP appointment (compensation logic)
+   */
+  private async compensateMCPBooking(appointmentId: string): Promise<void> {
+    try {
+      logger.info(`[Follow-up Scheduler] Attempting to cancel orphaned MCP appointment: ${appointmentId}`);
+      await mcpClient.cancelAppointment(appointmentId, 'Database save failed - automatic rollback');
+      logger.info(`[Follow-up Scheduler] Successfully cancelled orphaned MCP appointment: ${appointmentId}`);
+    } catch (compensationError) {
+      logger.error(
+        `[Follow-up Scheduler] Failed to cancel orphaned MCP appointment: ${appointmentId}`,
+        compensationError
+      );
+      // Don't throw - we've already logged the orphaned appointment
+    }
+  }
+
+  /**
+   * Book appointment via MCP and persist to database with saga pattern
+   * Implements compensation logic to rollback MCP booking if database save fails
+   */
+  private async bookAndPersistAppointment(
+    context: AgentContext,
+    patient: PatientDetails,
+    availability: AvailabilitySlot,
+    normalizedIntent: Required<Pick<FollowUpOutput, 'type' | 'duration' | 'reason' | 'instructions'>>
+  ): Promise<void> {
+    let mcpAppointment: { id: string; scheduledAt: string; type: string; reason?: string } | null = null;
+
+    try {
+      // Step 1: Book via MCP
+      const appointment = await mcpClient.bookAppointment({
+        patientId: context.patientId,
+        patientName: `${patient.firstName} ${patient.lastName}`,
+        doctorId: availability.doctorId,
+        scheduledAt: availability.scheduledAt,
+        type: normalizedIntent.type,
+        duration: normalizedIntent.duration,
+        reason: normalizedIntent.reason,
+        notes: normalizedIntent.instructions,
+      });
+
+      // Store appointment details for potential compensation
+      mcpAppointment = {
+        id: appointment.id,
+        scheduledAt: appointment.scheduledAt,
+        type: appointment.type,
+        reason: appointment.reason,
+      };
+
+      // Step 2: Persist to database
+      await prisma.appointment.create({
+        data: {
+          consultationId: context.consultationId,
+          patientId: context.patientId,
+          scheduledAt: new Date(appointment.scheduledAt),
+          type: appointment.type as AppointmentType,
+          reason: appointment.reason || normalizedIntent.reason,
+          isApproved: false,
+        },
+      });
+    } catch (error) {
+      // If we successfully booked via MCP but DB save failed, attempt compensation
+      if (mcpAppointment) {
+        this.logOrphanedAppointment(mcpAppointment, context.patientId, error);
+        
+        // Attempt to cancel the MCP booking (saga compensation)
+        await this.compensateMCPBooking(mcpAppointment.id);
+        
+        throw this.createOrphanedAppointmentError(mcpAppointment.id, error);
+      }
+      
+      // If MCP booking itself failed, just re-throw
+      throw error;
+    }
+  }
+
+  /**
+   * Normalize follow-up intent with default values
+   */
+  private normalizeFollowUpIntent(intent: {
+    type?: AppointmentType;
+    duration?: number;
+    reason?: string;
+    instructions?: string;
+  }): Required<Pick<FollowUpOutput, 'type' | 'duration' | 'reason' | 'instructions'>> {
+    const appointmentType = intent.type || AppointmentType.FOLLOW_UP;
+    const defaultDuration = FollowUpSchedulerAgent.DEFAULT_DURATIONS[appointmentType];
+
+    return {
+      type: appointmentType,
+      duration: intent.duration || defaultDuration,
+      reason: intent.reason || 'Follow-up appointment',
+      instructions: intent.instructions || '',
+    };
+  }
+
+  /**
+   * Detect if a follow-up appointment is needed
+   */
+  private async detectFollowUpIntent(transcriptText: string): Promise<FollowUpIntent> {
+    // Early return for empty transcript
+    if (!transcriptText || transcriptText.trim().length === 0) {
+      logger.warn('[Follow-up Scheduler] Empty transcript provided, skipping follow-up detection');
+      return { needed: false };
+    }
+
+    const userPrompt = this.buildFollowUpDetectionPrompt(transcriptText);
 
     try {
       const response = await llmService.generateCompletion(
         [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: prompt },
+          { role: 'system', content: FollowUpSchedulerAgent.FOLLOW_UP_DETECTION_SYSTEM_PROMPT },
+          { role: 'user', content: userPrompt },
         ],
         {
           provider: 'openai',
@@ -174,11 +328,42 @@ Respond with JSON only.`;
         }
       );
 
-      return this.parseStructuredOutput(response.content, {});
+      const parsed = this.parseStructuredOutput<FollowUpIntent>(response.content, {});
+
+      // Validate and normalize the parsed response
+      if (parsed.needed && parsed.type) {
+        return {
+          needed: true,
+          type: parsed.type,
+          timeframe: parsed.timeframe,
+          duration: parsed.duration,
+          reason: parsed.reason,
+          instructions: parsed.instructions,
+        };
+      }
+
+      return { needed: false };
     } catch (error) {
-      logger.error('[Follow-up Scheduler] Failed to detect follow-up intent:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('[Follow-up Scheduler] Failed to detect follow-up intent:', {
+        error: errorMessage,
+        transcriptLength: transcriptText.length,
+      });
+
+      // Return false for parsing/network errors to avoid blocking the workflow
       return { needed: false };
     }
+  }
+
+  /**
+   * Build user prompt for follow-up detection
+   */
+  private buildFollowUpDetectionPrompt(transcriptText: string): string {
+    return `Analyze this consultation transcript and detect follow-up appointment intent:
+
+${transcriptText}
+
+Respond with JSON only.`;
   }
 
   /**
@@ -188,11 +373,7 @@ Respond with JSON only.`;
     timeframe: string,
     duration: number,
     preferredDoctorId: string
-  ): Promise<{
-    scheduledAt: string;
-    doctorId: string;
-    doctorName: string;
-  } | null> {
+  ): Promise<AvailabilitySlot | null> {
     try {
       // Parse timeframe to get target date
       const targetDate = this.parseTimeframe(timeframe);

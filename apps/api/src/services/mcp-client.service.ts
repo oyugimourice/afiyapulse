@@ -285,11 +285,13 @@ class MCPClientService {
       });
 
       if (result.isError) {
-        throw new Error(result.content[0]?.text || 'Unknown MCP error');
+        throw new Error(
+          (result.content as Array<{ text?: string }>)?.[0]?.text || 'Unknown MCP error'
+        );
       }
 
       // Parse JSON response
-      const responseText = result.content[0]?.text;
+      const responseText = (result.content as Array<{ text?: string }>)?.[0]?.text;
       if (!responseText) {
         throw new Error('Empty response from MCP server');
       }
