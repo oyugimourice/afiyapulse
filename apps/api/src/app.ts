@@ -15,6 +15,7 @@ import authRoutes from './routes/auth.routes';
 import consultationRoutes from './routes/consultation.routes';
 import patientRoutes from './routes/patient.routes';
 import reviewRoutes from './routes/review.routes';
+import pdfRoutes from './routes/pdf.routes';
 import healthRoutes from './routes/health.routes';
 
 // WebSocket
@@ -62,6 +63,7 @@ function configureRoutes(app: Application): void {
   app.use('/api/consultations', consultationRoutes);
   app.use('/api/patients', patientRoutes);
   app.use('/api/review', reviewRoutes);
+  app.use('/api/pdf', pdfRoutes);
 }
 
 /**
