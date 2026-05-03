@@ -1,11 +1,12 @@
 import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { useAuthStore } from '@/store/authStore';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3001').replace(/\/+$/, '');
+const API_BASE_URL = API_URL.endsWith('/api') ? API_URL : `${API_URL}/api`;
 
 // Create axios instance
 const apiClient: AxiosInstance = axios.create({
-  baseURL: `${API_URL}/api`,
+  baseURL: API_BASE_URL,
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
@@ -46,11 +47,11 @@ apiClient.interceptors.response.use(
         }
         
         // Attempt to refresh token
-        const response = await axios.post(`${API_URL}/api/auth/refresh`, {
+        const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
           refreshToken,
         });
         
-        const { accessToken: newAccessToken, refreshToken: newRefreshToken } = response.data;
+        const { accessToken: newAccessToken, refreshToken: newRefreshToken } = response.data.data;
         
         // Update tokens in store
         useAuthStore.getState().setTokens(newAccessToken, newRefreshToken);
@@ -78,7 +79,12 @@ export default apiClient;
 // Helper function to handle API errors
 export function getErrorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
-    return error.response?.data?.message || error.message || 'An error occurred';
+    return (
+      error.response?.data?.error?.message ||
+      error.response?.data?.message ||
+      error.message ||
+      'An error occurred'
+    );
   }
   
   if (error instanceof Error) {

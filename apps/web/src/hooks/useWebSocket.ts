@@ -23,7 +23,8 @@ export function useWebSocket(namespace: string = '/'): UseWebSocketReturn {
     if (!accessToken) return;
 
     // Create socket connection
-    const socket = io(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}${namespace}`, {
+    const socketUrl = (import.meta.env.VITE_WS_URL || import.meta.env.VITE_API_URL || 'http://localhost:3001').replace(/\/+$/, '');
+    const socket = io(`${socketUrl}${namespace}`, {
       auth: {
         token: accessToken,
       },

@@ -5,6 +5,7 @@ import { UserRole } from '@afiyapulse/database';
 import { AppError } from '../middleware/error.middleware';
 import redisClient from '../config/redis';
 import logger from '../config/logger';
+import emailService from './email.service';
 
 export class AuthService {
   private readonly JWT_SECRET: string;
@@ -73,6 +74,14 @@ export class AuthService {
     });
 
     logger.info(`New user registered: ${user.email}`);
+
+    // Send welcome email (async, don't wait)
+    emailService.sendWelcomeEmail(user.email, {
+      name: user.name,
+      email: user.email,
+    }).catch(error => {
+      logger.error('Failed to send welcome email:', error);
+    });
 
     return user;
   }
