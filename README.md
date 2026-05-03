@@ -13,6 +13,7 @@
 Every day, doctors spend **2.3 hours on administrative documentation** — writing clinical notes, drafting prescriptions, composing referral letters, and scheduling follow-ups. That's **575 hours per year, per doctor**, spent on paperwork instead of patients.
 
 **Consequences:**
+
 - 65% physician burnout rate
 - Increased medical errors from rushed documentation
 - In sub-Saharan Africa: 1:10,000 doctor-to-patient ratios compound the crisis
@@ -30,7 +31,7 @@ By consultation end, a complete documentation package awaits **one-click approva
 
 ## 🏗️ Architecture
 
-```
+```md
 ┌─────────────────────────────────────────────────────────────┐
 │                     ClinicalCopilot                          │
 ├─────────────────────────────────────────────────────────────┤
@@ -155,7 +156,7 @@ PORT="3001"
 
 ## 📁 Project Structure
 
-```
+```sh
 afiyapulse/
 ├── apps/
 │   ├── api/                    # Backend API
@@ -204,28 +205,33 @@ afiyapulse/
 ## 🔑 Key Features
 
 ### 1. Real-Time AI Documentation
+
 - **Ambient listening** during consultations
 - **Parallel agent execution** for maximum efficiency
 - **Zero additional input** required from doctors
 
 ### 2. Comprehensive Review Panel
+
 - **One-click approval** for all generated documentation
 - **Inline editing** with revision tracking
 - **Batch approval** for entire consultations
 
 ### 3. Doctor Dashboard
+
 - **Real-time statistics** (consultations, patients, performance)
 - **Pending reviews** tracking
 - **Consultation trends** and analytics
 - **Patient demographics** visualization
 
 ### 4. Patient Management
+
 - **Automatic MRN generation**
 - **Advanced search** and filtering
 - **Complete medical history** access
 - **HIPAA-compliant** data handling
 
 ### 5. Security & Compliance
+
 - **AES-256-GCM encryption** for PHI data
 - **Comprehensive audit logging** for all operations
 - **Role-based access control** (RBAC)
@@ -233,6 +239,7 @@ afiyapulse/
 - **Redis-based rate limiting**
 
 ### 6. Performance Optimization
+
 - **Redis caching** (60-80% database load reduction)
 - **Distributed rate limiting**
 - **WebSocket real-time updates**
@@ -344,7 +351,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - **Documentation**: [https://docs.afiyapulse.com](https://docs.afiyapulse.com)
 - **Issues**: [GitHub Issues](https://github.com/yourusername/afiyapulse/issues)
-- **Email**: support@afiyapulse.com
+- **Email**: <support@afiyapulse.com>
 - **Discord**: [Join our community](https://discord.gg/afiyapulse)
 
 ## 🗺️ Roadmap
@@ -362,3 +369,13 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 **Built with ❤️ by the AfiyaPulse Team**
 
 *Developed using IBM Bob as the primary development partner, demonstrating how AI can help builders at any skill level ship production-quality software at hackathon speed.*
+
+## 📚 Documentation
+
+Comprehensive documentation is available in the [`docs/`](docs/) directory:
+
+- **[API Reference](docs/API.md)** - Complete REST API documentation with all endpoints
+- **[Deployment Guide](docs/DEPLOYMENT.md)** - IBM Cloud deployment instructions
+- **[Testing Guide](docs/TESTING.md)** - Testing setup and best practices
+- **[Commands Reference](docs/COMMANDS.md)** - All project commands in one place
+- **[Documentation Index](docs/README.md)** - Complete documentation overview

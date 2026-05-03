@@ -9,16 +9,22 @@ export class StorageService {
   private bucketName: string;
 
   constructor() {
-    // Initialize S3 client
+    // Initialize S3 client for IBM Cloud Object Storage
+    const endpoint = process.env.AWS_ENDPOINT || 'https://s3.us-east.cloud-object-storage.appdomain.cloud';
+    
     this.s3Client = new S3Client({
-      region: process.env.AWS_REGION || 'us-east-1',
+      endpoint,
+      region: process.env.AWS_REGION || 'us-east',
       credentials: {
         accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
         secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
       },
+      forcePathStyle: true, // Required for IBM Cloud Object Storage
     });
 
     this.bucketName = process.env.AWS_S3_BUCKET || 'afiyapulse-audio';
+    
+    logger.info(`Storage service initialized with IBM Cloud Object Storage: ${endpoint}`);
   }
 
   /**
@@ -54,9 +60,11 @@ export class StorageService {
 
       await this.s3Client.send(command);
 
-      const url = `https://${this.bucketName}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${fileKey}`;
+      // Generate IBM Cloud Object Storage URL
+      const endpoint = process.env.AWS_ENDPOINT || 'https://s3.us-east.cloud-object-storage.appdomain.cloud';
+      const url = `${endpoint}/${this.bucketName}/${fileKey}`;
 
-      logger.info(`Audio uploaded to S3: ${fileKey}`);
+      logger.info(`Audio uploaded to IBM Cloud Object Storage: ${fileKey}`);
 
       return { url, key: fileKey };
     } catch (error) {
@@ -129,9 +137,11 @@ export class StorageService {
 
       await this.s3Client.send(command);
 
-      const url = `https://${this.bucketName}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${fileKey}`;
+      // Generate IBM Cloud Object Storage URL
+      const endpoint = process.env.AWS_ENDPOINT || 'https://s3.us-east.cloud-object-storage.appdomain.cloud';
+      const url = `${endpoint}/${this.bucketName}/${fileKey}`;
 
-      logger.info(`Audio chunk ${chunkIndex} uploaded to S3: ${fileKey}`);
+      logger.info(`Audio chunk ${chunkIndex} uploaded to IBM Cloud Object Storage: ${fileKey}`);
 
       return { url, key: fileKey };
     } catch (error) {

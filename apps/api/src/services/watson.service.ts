@@ -12,26 +12,63 @@ export interface TranscriptionResult {
 }
 
 export class WatsonService {
-  private speechToText: SpeechToTextV1;
-  private modelName: string;
+  private speechToText: SpeechToTextV1 | null = null;
+  private modelName: string = 'en-US_BroadbandModel';
+  private isConfigured: boolean = false;
 
   constructor() {
-    // Initialize Watson Speech-to-Text
-    this.speechToText = new SpeechToTextV1({
-      authenticator: new IamAuthenticator({
-        apikey: process.env.WATSON_API_KEY || '',
-      }),
-      serviceUrl: process.env.WATSON_SERVICE_URL || '',
-    });
-
     // Use medical vocabulary model if available
     this.modelName = process.env.WATSON_MODEL || 'en-US_BroadbandModel';
+
+    // Initialize Watson Speech-to-Text
+    const apiKey = process.env.WATSON_STT_API_KEY || '';
+    const serviceUrl = process.env.WATSON_STT_URL || '';
+
+    if (!apiKey || !serviceUrl) {
+      logger.warn('Watson Speech-to-Text credentials not configured. Transcription will not be available.');
+      this.isConfigured = false;
+      return;
+    }
+
+    try {
+      this.speechToText = new SpeechToTextV1({
+        authenticator: new IamAuthenticator({
+          apikey: apiKey,
+        }),
+        serviceUrl: serviceUrl,
+      });
+      this.isConfigured = true;
+      logger.info('Watson Speech-to-Text service initialized successfully');
+    } catch (error) {
+      logger.error('Failed to initialize Watson Speech-to-Text service:', error);
+      this.isConfigured = false;
+    }
+  }
+
+  /**
+   * Map Watson alternative to TranscriptionResult
+   */
+  private mapAlternativeToTranscription(
+    alternative: any,
+    timestamp: number,
+    speaker?: string
+  ): TranscriptionResult {
+    return {
+      text: alternative.transcript ?? '',
+      confidence: alternative.confidence ?? 0,
+      timestamp,
+      ...(speaker && { speaker }),
+    };
   }
 
   /**
    * Transcribe audio file
    */
   async transcribeAudio(audioBuffer: Buffer, contentType: string = 'audio/webm'): Promise<TranscriptionResult[]> {
+    if (!this.isConfigured || !this.speechToText) {
+      throw new AppError('Watson Speech-to-Text service is not configured', 503);
+    }
+
     try {
       const params = {
         audio: audioBuffer,
@@ -45,25 +82,19 @@ export class WatsonService {
       };
 
       const response = await this.speechToText.recognize(params);
+      const results = response?.result?.results;
 
-      if (!response.result.results || response.result.results.length === 0) {
+      if (!results?.length) {
         logger.warn('No transcription results from Watson');
         return [];
       }
 
-      const transcriptions: TranscriptionResult[] = [];
-
-      for (const result of response.result.results) {
-        if (result.alternatives && result.alternatives.length > 0) {
-          const alternative = result.alternatives[0];
-          
-          transcriptions.push({
-            text: alternative.transcript || '',
-            confidence: alternative.confidence || 0,
-            timestamp: Date.now(),
-          });
-        }
-      }
+      const timestamp = Date.now();
+      const transcriptions = results.flatMap(result =>
+        result.alternatives?.[0]
+          ? [this.mapAlternativeToTranscription(result.alternatives[0], timestamp)]
+          : []
+      );
 
       logger.info(`Transcribed ${transcriptions.length} segments`);
 
@@ -78,6 +109,10 @@ export class WatsonService {
    * Transcribe audio stream (for real-time transcription)
    */
   async transcribeStream(audioStream: Readable, contentType: string = 'audio/webm'): Promise<Readable> {
+    if (!this.isConfigured || !this.speechToText) {
+      throw new AppError('Watson Speech-to-Text service is not configured', 503);
+    }
+
     try {
       const params = {
         contentType,
@@ -108,6 +143,10 @@ export class WatsonService {
    * Get available models
    */
   async getModels(): Promise<any[]> {
+    if (!this.isConfigured || !this.speechToText) {
+      throw new AppError('Watson Speech-to-Text service is not configured', 503);
+    }
+
     try {
       const response = await this.speechToText.listModels();
       return response.result.models || [];
@@ -121,6 +160,10 @@ export class WatsonService {
    * Create custom language model (for medical terminology)
    */
   async createCustomModel(name: string, baseModel: string = 'en-US_BroadbandModel'): Promise<string> {
+    if (!this.isConfigured || !this.speechToText) {
+      throw new AppError('Watson Speech-to-Text service is not configured', 503);
+    }
+
     try {
       const params = {
         name,
@@ -144,6 +187,10 @@ export class WatsonService {
    * Add medical terms to custom model
    */
   async addMedicalTerms(customizationId: string, terms: { word: string; sounds_like?: string[] }[]): Promise<void> {
+    if (!this.isConfigured || !this.speechToText) {
+      throw new AppError('Watson Speech-to-Text service is not configured', 503);
+    }
+
     try {
       const params = {
         customizationId,
@@ -163,6 +210,10 @@ export class WatsonService {
    * Train custom model
    */
   async trainCustomModel(customizationId: string): Promise<void> {
+    if (!this.isConfigured || !this.speechToText) {
+      throw new AppError('Watson Speech-to-Text service is not configured', 503);
+    }
+
     try {
       await this.speechToText.trainLanguageModel({ customizationId });
 
@@ -177,39 +228,26 @@ export class WatsonService {
    * Process transcription with speaker diarization
    */
   processSpeakerDiarization(watsonResult: any): TranscriptionResult[] {
-    const transcriptions: TranscriptionResult[] = [];
-
-    if (!watsonResult.results || !watsonResult.speaker_labels) {
-      return transcriptions;
+    if (!watsonResult?.results || !watsonResult?.speaker_labels) {
+      return [];
     }
 
     const speakerLabels = watsonResult.speaker_labels;
     const results = watsonResult.results;
+    const timestamp = Date.now();
 
-    for (let i = 0; i < results.length; i++) {
-      const result = results[i];
-      if (result.alternatives && result.alternatives.length > 0) {
-        const alternative = result.alternatives[0];
-        
-        // Find corresponding speaker label
-        let speaker = 'UNKNOWN';
-        if (speakerLabels[i]) {
-          speaker = `SPEAKER_${speakerLabels[i].speaker}`;
-        }
-
-        transcriptions.push({
-          text: alternative.transcript || '',
-          confidence: alternative.confidence || 0,
-          speaker,
-          timestamp: Date.now(),
-        });
+    return results.flatMap((result: any, index: number) => {
+      if (!result.alternatives?.[0]) {
+        return [];
       }
-    }
 
-    return transcriptions;
+      const speaker = speakerLabels[index]
+        ? `SPEAKER_${speakerLabels[index].speaker}`
+        : 'UNKNOWN';
+
+      return [this.mapAlternativeToTranscription(result.alternatives[0], timestamp, speaker)];
+    });
   }
 }
 
 export default new WatsonService();
-
-// Made with Bob

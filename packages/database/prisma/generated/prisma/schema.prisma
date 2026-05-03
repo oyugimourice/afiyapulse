@@ -1,0 +1,254 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "./generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================
+// USER MANAGEMENT
+// ============================================
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String
+  passwordHash  String
+  role          UserRole @default(DOCTOR)
+  specialty     String?
+  licenseNumber String?  @unique
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  consultations Consultation[]
+  auditLogs     AuditLog[]
+
+  @@index([email])
+  @@map("users")
+}
+
+enum UserRole {
+  DOCTOR
+  NURSE
+  ADMIN
+}
+
+// ============================================
+// PATIENT MANAGEMENT
+// ============================================
+
+model Patient {
+  id        String   @id @default(cuid())
+  mrn       String   @unique
+  firstName String
+  lastName  String
+  dob       DateTime
+  gender    Gender
+  phone     String?
+  email     String?
+  address   String?
+  allergies String[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  consultations Consultation[]
+  prescriptions Prescription[]
+  referrals     Referral[]
+  appointments  Appointment[]
+
+  @@index([mrn])
+  @@index([lastName, firstName])
+  @@map("patients")
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  UNKNOWN
+}
+
+// ============================================
+// CONSULTATION MANAGEMENT
+// ============================================
+
+model Consultation {
+  id        String             @id @default(cuid())
+  patientId String
+  doctorId  String
+  startedAt DateTime           @default(now())
+  endedAt   DateTime?
+  status    ConsultationStatus @default(IN_PROGRESS)
+  audioUrl  String?
+  duration  Int?
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  patient      Patient       @relation(fields: [patientId], references: [id])
+  doctor       User          @relation(fields: [doctorId], references: [id])
+  transcripts  Transcript[]
+  soapNote     SOAPNote?
+  prescription Prescription?
+  referral     Referral?
+  appointment  Appointment?
+
+  @@index([patientId])
+  @@index([doctorId])
+  @@index([status])
+  @@index([startedAt])
+  @@map("consultations")
+}
+
+enum ConsultationStatus {
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  PENDING_REVIEW
+}
+
+// ============================================
+// TRANSCRIPTION
+// ============================================
+
+model Transcript {
+  id             String   @id @default(cuid())
+  consultationId String
+  text           String   @db.Text
+  speaker        Speaker
+  timestamp      DateTime @default(now())
+  confidence     Float?
+
+  consultation Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+
+  @@index([consultationId])
+  @@map("transcripts")
+}
+
+enum Speaker {
+  DOCTOR
+  PATIENT
+  SYSTEM
+}
+
+// ============================================
+// CLINICAL DOCUMENTATION
+// ============================================
+
+model SOAPNote {
+  id             String    @id @default(cuid())
+  consultationId String    @unique
+  subjective     String    @db.Text
+  objective      String    @db.Text
+  assessment     String    @db.Text
+  plan           String    @db.Text
+  isApproved     Boolean   @default(false)
+  approvedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  consultation Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+
+  @@index([consultationId])
+  @@map("soap_notes")
+}
+
+model Prescription {
+  id             String    @id @default(cuid())
+  consultationId String    @unique
+  patientId      String
+  medications    Json
+  instructions   String?   @db.Text
+  isApproved     Boolean   @default(false)
+  approvedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  consultation Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  patient      Patient      @relation(fields: [patientId], references: [id])
+
+  @@index([consultationId])
+  @@index([patientId])
+  @@map("prescriptions")
+}
+
+model Referral {
+  id             String    @id @default(cuid())
+  consultationId String    @unique
+  patientId      String
+  specialty      String
+  reason         String    @db.Text
+  urgency        Urgency   @default(ROUTINE)
+  notes          String?   @db.Text
+  isApproved     Boolean   @default(false)
+  approvedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  consultation Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  patient      Patient      @relation(fields: [patientId], references: [id])
+
+  @@index([consultationId])
+  @@index([patientId])
+  @@map("referrals")
+}
+
+enum Urgency {
+  ROUTINE
+  URGENT
+  EMERGENCY
+}
+
+model Appointment {
+  id             String          @id @default(cuid())
+  consultationId String          @unique
+  patientId      String
+  scheduledAt    DateTime
+  type           AppointmentType
+  reason         String?
+  isApproved     Boolean         @default(false)
+  approvedAt     DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  consultation Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  patient      Patient      @relation(fields: [patientId], references: [id])
+
+  @@index([consultationId])
+  @@index([patientId])
+  @@index([scheduledAt])
+  @@map("appointments")
+}
+
+enum AppointmentType {
+  FOLLOW_UP
+  LAB_WORK
+  IMAGING
+  SPECIALIST
+  PROCEDURE
+}
+
+// ============================================
+// AUDIT & COMPLIANCE
+// ============================================
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  userId       String
+  action       String
+  resourceType String
+  resourceId   String
+  metadata     Json?
+  ipAddress    String?
+  userAgent    String?
+  timestamp    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([resourceType, resourceId])
+  @@index([timestamp])
+  @@map("audit_logs")
+}

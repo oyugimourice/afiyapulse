@@ -2,19 +2,20 @@ import express, { Application } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
-import { createServer } from 'http';
+import { createServer, Server } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 
 // Middleware
 import { errorHandler } from './middleware/error.middleware';
 import { requestLogger } from './middleware/logger.middleware';
-import { generalRateLimiter } from './middleware/rate-limit.middleware';
+import { rateLimiter } from './middleware/rate-limit.middleware';
 
 // Routes
 import authRoutes from './routes/auth.routes';
 import consultationRoutes from './routes/consultation.routes';
 import patientRoutes from './routes/patient.routes';
 import reviewRoutes from './routes/review.routes';
+import healthRoutes from './routes/health.routes';
 
 // WebSocket
 import { initializeWebSocket } from './websocket/server';
@@ -22,13 +23,10 @@ import { initializeWebSocket } from './websocket/server';
 // Logger
 import logger from './config/logger';
 
-export function createApp(): { app: Application; httpServer: any; io: SocketIOServer } {
-  const app = express();
-  const httpServer = createServer(app);
-
-  // Initialize Socket.IO
-  const io = initializeWebSocket(httpServer);
-
+/**
+ * Configure security and utility middleware
+ */
+function configureMiddleware(app: Application): void {
   // Security middleware
   app.use(helmet());
   app.use(
@@ -49,23 +47,27 @@ export function createApp(): { app: Application; httpServer: any; io: SocketIOSe
   app.use(requestLogger);
 
   // Rate limiting
-  app.use(generalRateLimiter);
+  app.use(rateLimiter);
+}
 
-  // Health check endpoint
-  app.get('/health', (req, res) => {
-    res.json({
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-    });
-  });
+/**
+ * Configure application routes
+ */
+function configureRoutes(app: Application): void {
+  // Health check routes (no rate limiting for health checks)
+  app.use('/', healthRoutes);
 
   // API routes
   app.use('/api/auth', authRoutes);
   app.use('/api/consultations', consultationRoutes);
   app.use('/api/patients', patientRoutes);
   app.use('/api/review', reviewRoutes);
+}
 
+/**
+ * Configure error handling middleware
+ */
+function configureErrorHandling(app: Application): void {
   // 404 handler
   app.use((req, res) => {
     res.status(404).json({
@@ -76,34 +78,75 @@ export function createApp(): { app: Application; httpServer: any; io: SocketIOSe
 
   // Error handling middleware (must be last)
   app.use(errorHandler);
+}
 
-  // Graceful shutdown
-  const gracefulShutdown = async () => {
+/**
+ * Create graceful shutdown handler with proper async sequencing
+ */
+function createGracefulShutdown(httpServer: Server, io: SocketIOServer): () => Promise<void> {
+  return async (): Promise<void> => {
     logger.info('Received shutdown signal, closing server gracefully...');
 
-    httpServer.close(() => {
-      logger.info('HTTP server closed');
-    });
+    try {
+      // Close HTTP server first
+      await new Promise<void>((resolve, reject) => {
+        httpServer.close((err) => {
+          if (err) reject(err);
+          else {
+            logger.info('HTTP server closed');
+            resolve();
+          }
+        });
+      });
 
-    io.close(() => {
-      logger.info('WebSocket server closed');
-    });
+      // Close WebSocket server
+      await new Promise<void>((resolve) => {
+        io.close(() => {
+          logger.info('WebSocket server closed');
+          resolve();
+        });
+      });
 
-    // Close database connections
-    const { prisma } = await import('@afiyapulse/database');
-    await prisma.$disconnect();
-    logger.info('Database connections closed');
+      // Close database connections
+      const { prisma } = await import('@afiyapulse/database');
+      await prisma.$disconnect();
+      logger.info('Database connections closed');
 
-    // Close Redis connection
-    const { redisClient } = await import('./config/redis');
-    await redisClient.quit();
-    logger.info('Redis connection closed');
+      // Close Redis connection
+      const redisClient = (await import('./config/redis')).default;
+      await redisClient.quit();
+      logger.info('Redis connection closed');
 
-    process.exit(0);
+      process.exit(0);
+    } catch (error) {
+      logger.error('Error during graceful shutdown:', error);
+      process.exit(1);
+    }
   };
+}
 
+/**
+ * Register shutdown signal handlers
+ */
+function registerShutdownHandlers(gracefulShutdown: () => Promise<void>): void {
   process.on('SIGTERM', gracefulShutdown);
   process.on('SIGINT', gracefulShutdown);
+}
+
+/**
+ * Create and configure Express application with HTTP and WebSocket servers
+ */
+export function createApp(): { app: Application; httpServer: Server; io: SocketIOServer } {
+  const app = express();
+  const httpServer = createServer(app);
+  const io = initializeWebSocket(httpServer);
+
+  configureMiddleware(app);
+  configureRoutes(app);
+  configureErrorHandling(app);
+
+  const gracefulShutdown = createGracefulShutdown(httpServer, io);
+  registerShutdownHandlers(gracefulShutdown);
 
   return { app, httpServer, io };
 }

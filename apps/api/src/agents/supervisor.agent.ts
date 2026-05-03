@@ -77,6 +77,7 @@ export class SupervisorAgent extends EventEmitter {
       });
     } finally {
       this.isRunning = false;
+      this.cleanupAgentListeners();
     }
   }
 
@@ -190,93 +191,47 @@ export class SupervisorAgent extends EventEmitter {
    * Set up event listeners for all agents
    */
   private setupAgentListeners(): void {
-    // Clinical Scribe Agent listeners
-    clinicalScribeAgent.on('status', (status) => {
-      this.emit('agent_status', {
-        consultationId: this.consultationId,
-        ...status,
-      });
+    const agents = [
+      clinicalScribeAgent,
+      prescriptionDrafterAgent,
+      referralWriterAgent,
+      followUpSchedulerAgent,
+    ];
+
+    agents.forEach(agent => this.attachAgentListeners(agent));
+  }
+
+  /**
+   * Attach standard event listeners to an agent
+   */
+  private attachAgentListeners(agent: EventEmitter): void {
+    const basePayload = { consultationId: this.consultationId };
+
+    agent.on('status', (status) => {
+      this.emit('agent_status', { ...basePayload, ...status });
     });
 
-    clinicalScribeAgent.on('message', (message) => {
-      this.emit('agent_message', {
-        consultationId: this.consultationId,
-        ...message,
-      });
+    agent.on('message', (message) => {
+      this.emit('agent_message', { ...basePayload, ...message });
     });
 
-    clinicalScribeAgent.on('error', (error) => {
-      this.emit('agent_error', {
-        consultationId: this.consultationId,
-        ...error,
-      });
+    agent.on('error', (error) => {
+      this.emit('agent_error', { ...basePayload, ...error });
     });
+  }
 
-    // Prescription Drafter Agent listeners
-    prescriptionDrafterAgent.on('status', (status) => {
-      this.emit('agent_status', {
-        consultationId: this.consultationId,
-        ...status,
-      });
-    });
+  /**
+   * Clean up agent listeners to prevent memory leaks
+   */
+  private cleanupAgentListeners(): void {
+    const agents = [
+      clinicalScribeAgent,
+      prescriptionDrafterAgent,
+      referralWriterAgent,
+      followUpSchedulerAgent,
+    ];
 
-    prescriptionDrafterAgent.on('message', (message) => {
-      this.emit('agent_message', {
-        consultationId: this.consultationId,
-        ...message,
-      });
-    });
-
-    prescriptionDrafterAgent.on('error', (error) => {
-      this.emit('agent_error', {
-        consultationId: this.consultationId,
-        ...error,
-      });
-    });
-
-    // Referral Writer Agent listeners
-    referralWriterAgent.on('status', (status) => {
-      this.emit('agent_status', {
-        consultationId: this.consultationId,
-        ...status,
-      });
-    });
-
-    referralWriterAgent.on('message', (message) => {
-      this.emit('agent_message', {
-        consultationId: this.consultationId,
-        ...message,
-      });
-    });
-
-    referralWriterAgent.on('error', (error) => {
-      this.emit('agent_error', {
-        consultationId: this.consultationId,
-        ...error,
-      });
-    });
-
-    // Follow-up Scheduler Agent listeners
-    followUpSchedulerAgent.on('status', (status) => {
-      this.emit('agent_status', {
-        consultationId: this.consultationId,
-        ...status,
-      });
-    });
-
-    followUpSchedulerAgent.on('message', (message) => {
-      this.emit('agent_message', {
-        consultationId: this.consultationId,
-        ...message,
-      });
-    });
-
-    followUpSchedulerAgent.on('error', (error) => {
-      this.emit('agent_error', {
-        consultationId: this.consultationId,
-        ...error,
-      });
-    });
+    agents.forEach(agent => agent.removeAllListeners());
   }
 
   /**
@@ -295,12 +250,7 @@ export class SupervisorAgent extends EventEmitter {
   async stop(): Promise<void> {
     this.isRunning = false;
     this.removeAllListeners();
-    
-    // Clean up agent listeners
-    clinicalScribeAgent.removeAllListeners();
-    prescriptionDrafterAgent.removeAllListeners();
-    referralWriterAgent.removeAllListeners();
-    followUpSchedulerAgent.removeAllListeners();
+    this.cleanupAgentListeners();
 
     logger.info(`Supervisor stopped for consultation ${this.consultationId}`);
   }

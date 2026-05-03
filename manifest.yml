@@ -1,0 +1,23 @@
+---
+applications:
+- name: afiyapulse-api
+  memory: 1G
+  instances: 2
+  buildpacks:
+    - nodejs_buildpack
+  command: node apps/api/dist/index.js
+  health-check-type: http
+  health-check-http-endpoint: /health
+  timeout: 180
+  env:
+    NODE_ENV: production
+    PORT: 8080
+  services:
+    - afiyapulse-postgres
+    - afiyapulse-redis
+    - afiyapulse-cos
+    - watson-stt
+  routes:
+    - route: afiyapulse-api.us-south.cf.appdomain.cloud
+
+# Made with Bob
