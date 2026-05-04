@@ -8,7 +8,7 @@ async function startServer() {
     const { createApp } = await import('./app');
 
     // Create Express app with HTTP and WebSocket servers
-    const { app, httpServer, io } = createApp();
+    const { httpServer } = createApp();
 
     // Start server
     httpServer.listen(PORT, () => {

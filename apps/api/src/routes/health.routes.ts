@@ -9,7 +9,7 @@ const router = Router();
  * Health check endpoint
  * Returns the health status of the application and its dependencies
  */
-router.get('/health', async (req: Request, res: Response) => {
+router.get('/health', async (_req: Request, res: Response) => {
   const startTime = Date.now();
   
   const health = {
@@ -66,7 +66,7 @@ router.get('/health', async (req: Request, res: Response) => {
  * Readiness probe endpoint
  * Returns 200 if the application is ready to accept traffic
  */
-router.get('/ready', async (req: Request, res: Response) => {
+router.get('/ready', async (_req: Request, res: Response) => {
   try {
     // Check if database is accessible
     await prisma.$queryRaw`SELECT 1`;
@@ -100,7 +100,7 @@ router.get('/live', (req: Request, res: Response) => {
  * Metrics endpoint (basic)
  * Returns basic application metrics
  */
-router.get('/metrics', async (req: Request, res: Response) => {
+router.get('/metrics', async (req: Request, res: Response): Promise<void> => {
   try {
     const memoryUsage = process.memoryUsage();
     const cpuUsage = process.cpuUsage();
@@ -122,7 +122,7 @@ router.get('/metrics', async (req: Request, res: Response) => {
     let redisStats = {};
     try {
       const info = await redisClient.info();
-      const lines = info.split('\r\n');
+      const lines = info.split('\r\n').map((line: string) => line);
       const usedMemory = lines.find(line => line.startsWith('used_memory:'));
       const connectedClients = lines.find(line => line.startsWith('connected_clients:'));
       

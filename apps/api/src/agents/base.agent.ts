@@ -37,7 +37,7 @@ export abstract class BaseAgent extends EventEmitter {
     this.name = config.name;
     this.type = config.type;
     this.description = config.description;
-    this.status = 'idle';
+    this.status = AgentStatus.IDLE;
     this.model = config.model || 'gpt-4';
     this.temperature = config.temperature || 0.7;
     this.maxTokens = config.maxTokens || 2000;
@@ -82,7 +82,7 @@ export abstract class BaseAgent extends EventEmitter {
     };
 
     this.emit('message', fullMessage);
-    logger.info(`[${this.name}] Message: ${message.content.substring(0, 100)}...`);
+    logger.info(`[${this.name}] Message sent`);
   }
 
   /**
@@ -91,7 +91,7 @@ export abstract class BaseAgent extends EventEmitter {
   protected handleError(error: Error, context?: string) {
     const errorMessage = `${context ? `${context}: ` : ''}${error.message}`;
     
-    this.updateStatus('error', errorMessage);
+    this.updateStatus(AgentStatus.ERROR, errorMessage);
     this.emit('error', {
       agent: this.name,
       type: this.type,
@@ -209,7 +209,7 @@ export abstract class BaseAgent extends EventEmitter {
    */
   async cleanup(): Promise<void> {
     this.removeAllListeners();
-    this.updateStatus('idle');
+    this.updateStatus(AgentStatus.IDLE);
   }
 }
 

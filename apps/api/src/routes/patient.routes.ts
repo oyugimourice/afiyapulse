@@ -287,7 +287,7 @@ router.get('/:id/stats', async (req, res, next) => {
  * @desc    Get all patients (paginated)
  * @access  Private (Doctor/Nurse/Admin)
  */
-router.get('/', patientCacheMiddleware, async (req, res, next) => {
+router.get('/', async (req, res, next) => {
   try {
     const { page, limit } = req.query;
 

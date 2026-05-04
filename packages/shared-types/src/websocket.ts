@@ -1,5 +1,5 @@
 import { AgentState, AgentMessage } from './agents';
-import { TranscriptSegment, ConsultationDocuments } from './consultation';
+import { TranscriptSegment } from './consultation';
 
 export enum WebSocketEventType {
   // Connection events

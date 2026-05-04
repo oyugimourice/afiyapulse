@@ -515,11 +515,11 @@ class CacheService {
     }
     
     try {
-      const info = await redisClient.info('stats');
+      const info = await redisClient.info();
       const dbSize = await redisClient.dbSize();
 
       // Parse info string for stats
-      const stats = info.split('\r\n').reduce((acc, line) => {
+      const stats = info.split('\r\n').reduce((acc: Record<string, string>, line: string) => {
         const [key, value] = line.split(':');
         if (key && value) {
           acc[key] = value;

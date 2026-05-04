@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth.middleware';
 import dashboardService from '../services/dashboard.service';
-import logger from '../config/logger';
 
 /**
  * Dashboard Routes

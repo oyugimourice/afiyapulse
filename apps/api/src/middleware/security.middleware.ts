@@ -115,7 +115,7 @@ export const corsOptions = {
  * Additional security headers middleware
  */
 export const additionalSecurityHeaders = (
-  req: Request,
+  _req: Request,
   res: Response,
   next: NextFunction
 ) => {

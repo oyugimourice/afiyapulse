@@ -16,6 +16,11 @@ interface RedisAdapter {
   expire(key: string, seconds: number): Promise<number>;
   ping(): Promise<string | null>;
   quit(): Promise<string>;
+  keys(pattern: string): Promise<string[]>;
+  ttl(key: string): Promise<number>;
+  flushDb(): Promise<string>;
+  info(): Promise<string>;
+  dbSize(): Promise<number>;
 }
 
 class TcpRedisAdapter implements RedisAdapter {
@@ -56,6 +61,27 @@ class TcpRedisAdapter implements RedisAdapter {
 
   async quit(): Promise<string> {
     return this.client.quit();
+  }
+
+  async keys(pattern: string): Promise<string[]> {
+    return this.client.keys(pattern);
+  }
+
+  async ttl(key: string): Promise<number> {
+    return this.client.ttl(key);
+  }
+
+  async flushDb(): Promise<string> {
+    await this.client.flushDb();
+    return 'OK';
+  }
+
+  async info(): Promise<string> {
+    return this.client.info();
+  }
+
+  async dbSize(): Promise<number> {
+    return this.client.dbSize();
   }
 }
 
@@ -101,6 +127,27 @@ class UpstashRedisAdapter implements RedisAdapter {
 
   async quit(): Promise<string> {
     return 'OK';
+  }
+
+  async keys(pattern: string): Promise<string[]> {
+    return this.client.keys(pattern) as Promise<string[]>;
+  }
+
+  async ttl(key: string): Promise<number> {
+    return this.client.ttl(key);
+  }
+
+  async flushDb(): Promise<string> {
+    await this.client.flushdb();
+    return 'OK';
+  }
+
+  async info(): Promise<string> {
+    return 'Upstash Redis (info not available)';
+  }
+
+  async dbSize(): Promise<number> {
+    return this.client.dbsize();
   }
 }
 
@@ -208,6 +255,21 @@ function createRedisClient(): RedisAdapter {
     },
     async quit() {
       return 'OK';
+    },
+    async keys() {
+      return [];
+    },
+    async ttl() {
+      return -1;
+    },
+    async flushDb() {
+      return 'OK';
+    },
+    async info() {
+      return 'No Redis connection';
+    },
+    async dbSize() {
+      return 0;
     },
   };
 }

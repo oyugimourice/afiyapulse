@@ -32,4 +32,3 @@ global.afterAll(async () => {
   // Cleanup code that runs after all tests
 });
 
-// Made with Bob

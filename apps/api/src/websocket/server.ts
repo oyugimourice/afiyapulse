@@ -29,9 +29,11 @@ export const initializeWebSocket = (httpServer: HTTPServer): SocketIOServer => {
   return io;
 };
 
-export const initializeWebSocketServer = (io: SocketIOServer) => {
-  // Authentication middleware
-  io.use((socket: any, next) => {
+const setupNamespaceAuthentication = (io: SocketIOServer, namespaceName: string) => {
+  const namespace = io.of(namespaceName);
+  
+  // Authentication middleware for namespace
+  namespace.use((socket: any, next) => {
     try {
       const token = socket.handshake.auth.token || socket.handshake.headers.authorization?.split(' ')[1];
 
@@ -53,17 +55,17 @@ export const initializeWebSocketServer = (io: SocketIOServer) => {
       socket.user = decoded;
       next();
     } catch (error) {
-      logger.error('WebSocket authentication error:', error);
+      logger.error(`WebSocket authentication error in ${namespaceName}:`, error);
       next(new Error('Invalid authentication token'));
     }
   });
 
-  // Connection handler
-  io.on('connection', (socket: any) => {
+  // Connection handler for namespace
+  namespace.on('connection', (socket: any) => {
     const authenticatedSocket = socket as typeof socket & AuthenticatedSocket;
     
     logger.info(
-      `WebSocket client connected: ${authenticatedSocket.user?.email} (${socket.id})`
+      `WebSocket client connected to ${namespaceName}: ${authenticatedSocket.user?.email} (${socket.id})`
     );
 
     // Join user-specific room
@@ -77,14 +79,14 @@ export const initializeWebSocketServer = (io: SocketIOServer) => {
     // Handle disconnection
     socket.on('disconnect', () => {
       logger.info(
-        `WebSocket client disconnected: ${authenticatedSocket.user?.email} (${socket.id})`
+        `WebSocket client disconnected from ${namespaceName}: ${authenticatedSocket.user?.email} (${socket.id})`
       );
     });
 
     // Handle errors
     socket.on('error', (error: Error) => {
       logger.error(
-        `WebSocket error for ${authenticatedSocket.user?.email}:`,
+        `WebSocket error in ${namespaceName} for ${authenticatedSocket.user?.email}:`,
         error
       );
     });
@@ -93,10 +95,19 @@ export const initializeWebSocketServer = (io: SocketIOServer) => {
     socket.emit('connected', {
       userId: authenticatedSocket.user.id,
       timestamp: new Date(),
+      namespace: namespaceName,
     });
   });
+};
 
-  logger.info('WebSocket server initialized successfully');
+export const initializeWebSocketServer = (io: SocketIOServer) => {
+  // Setup default namespace
+  setupNamespaceAuthentication(io, '/');
+  
+  // Setup consultation namespace
+  setupNamespaceAuthentication(io, '/consultation');
+
+  logger.info('WebSocket server initialized successfully with namespaces: /, /consultation');
 };
 
 // Made with Bob

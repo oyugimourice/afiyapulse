@@ -154,7 +154,7 @@ export class LLMService {
   async generateStructuredOutput<T>(
     messages: LLMMessage[],
     config: LLMConfig,
-    schema?: any
+    _schema?: any
   ): Promise<T> {
     // Add instruction to return JSON
     const enhancedMessages = [

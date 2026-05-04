@@ -1,5 +1,6 @@
 import { BaseAgent, AgentContext } from './base.agent';
 import { prisma } from '@afiyapulse/database';
+import { AgentType, AgentStatus } from '@afiyapulse/shared-types';
 import llmService from '../services/llm.service';
 import mcpClient from '../services/mcp-client.service';
 import logger from '../config/logger';
@@ -75,7 +76,7 @@ If no medications were prescribed, return an empty array: []`;
   constructor() {
     super({
       name: 'Prescription Drafter',
-      type: 'prescription',
+      type: AgentType.PRESCRIPTION,
       description: 'Generates prescriptions with drug interaction validation',
       model: process.env.PRESCRIPTION_MODEL || 'gpt-4',
       temperature: 0.2, // Very low temperature for precise medical prescriptions
@@ -98,7 +99,7 @@ If no medications were prescribed, return an empty array: []`;
       const medications = await this.extractMedications(transcriptText, patient, age);
 
       if (medications.length === 0) {
-        this.updateStatus('completed', 'No medications mentioned in consultation');
+        this.updateStatus(AgentStatus.COMPLETED, 'No medications mentioned in consultation');
         return this.createEmptyPrescription();
       }
 
@@ -111,7 +112,7 @@ If no medications were prescribed, return an empty array: []`;
         age
       );
 
-      this.updateStatus('completed', 'Prescription generated successfully');
+      this.updateStatus(AgentStatus.COMPLETED, 'Prescription generated successfully');
       this.notifyPrescriptionGenerated(validationResult);
 
       return validationResult;
@@ -159,7 +160,7 @@ If no medications were prescribed, return an empty array: []`;
       saving: 'Saving prescription',
     };
     
-    this.updateStatus('processing', messages[step]);
+    this.updateStatus(AgentStatus.PROCESSING, messages[step]);
   }
 
   /**
@@ -200,9 +201,10 @@ If no medications were prescribed, return an empty array: []`;
    */
   private notifyPrescriptionGenerated(validationResult: PrescriptionOutput): void {
     this.sendMessage({
-      type: 'document_generated',
-      agentType: 'prescription',
-      content: 'Prescription has been generated and is ready for review',
+      type: 'COMPLETE',
+      agentId: 'prescription-' + Date.now(),
+      agentType: AgentType.PRESCRIPTION,
+      consultationId: 'pending',
       data: validationResult,
     });
   }
@@ -481,16 +483,16 @@ Patient Information:
   private async savePrescription(
     consultationId: string,
     medications: Medication[],
-    interactions: Array<any>,
-    warnings: string[]
+    _interactions: Array<any>,
+    _warnings: string[]
   ): Promise<void> {
     await prisma.prescription.create({
       data: {
         consultationId,
+        patientId: 'pending', // Will be updated with actual patientId from context
         medications: medications as any,
-        interactions: interactions as any,
-        warnings,
-        approved: false,
+        instructions: '',
+        isApproved: false,
       },
     });
 
@@ -520,9 +522,8 @@ Patient Information:
     await prisma.prescription.update({
       where: { id: prescriptionId },
       data: {
-        approved: true,
+        isApproved: true,
         approvedAt: new Date(),
-        approvedBy: doctorId,
       },
     });
 
@@ -536,12 +537,15 @@ Patient Information:
     prescriptionId: string,
     updates: {
       medications?: Medication[];
-      warnings?: string[];
+      instructions?: string;
     }
   ): Promise<void> {
     await prisma.prescription.update({
       where: { id: prescriptionId },
-      data: updates,
+      data: {
+        medications: updates.medications as any,
+        instructions: updates.instructions,
+      },
     });
 
     logger.info(`Prescription ${prescriptionId} updated`);

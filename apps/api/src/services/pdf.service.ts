@@ -1,5 +1,4 @@
 import PDFDocument from 'pdfkit';
-import { Readable } from 'stream';
 import { prisma } from '@afiyapulse/database';
 import storageService from './storage.service';
 import logger from '../config/logger';

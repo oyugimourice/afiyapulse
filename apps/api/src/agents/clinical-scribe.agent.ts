@@ -1,5 +1,6 @@
 import { BaseAgent, AgentContext } from './base.agent';
 import { prisma } from '@afiyapulse/database';
+import { AgentType, AgentStatus } from '@afiyapulse/shared-types';
 import llmService from '../services/llm.service';
 import logger from '../config/logger';
 
@@ -23,7 +24,7 @@ export class ClinicalScribeAgent extends BaseAgent {
   constructor() {
     super({
       name: 'Clinical Scribe',
-      type: 'scribe',
+      type: AgentType.SCRIBE,
       description: 'Generates structured SOAP notes from consultation transcripts',
       model: process.env.SCRIBE_MODEL || 'gpt-4',
       temperature: 0.3, // Lower temperature for more consistent medical documentation
@@ -37,7 +38,7 @@ export class ClinicalScribeAgent extends BaseAgent {
   async process(context: AgentContext): Promise<SOAPNoteOutput> {
     try {
       this.validateContext(context);
-      this.updateStatus('processing', 'Analyzing consultation transcript');
+      this.updateStatus(AgentStatus.PROCESSING, 'Analyzing consultation transcript');
 
       // Extract transcript text
       const transcriptText = this.extractTranscriptText(context);
@@ -51,7 +52,6 @@ export class ClinicalScribeAgent extends BaseAgent {
           dob: true,
           gender: true,
           allergies: true,
-          medicalHistory: true,
         },
       });
 
@@ -60,19 +60,20 @@ export class ClinicalScribeAgent extends BaseAgent {
       }
 
       // Generate SOAP note
-      this.updateStatus('processing', 'Generating SOAP note');
+      this.updateStatus(AgentStatus.PROCESSING, 'Generating SOAP note');
       const soapNote = await this.generateSOAPNote(transcriptText, patient);
 
       // Save to database
-      this.updateStatus('processing', 'Saving SOAP note');
+      this.updateStatus(AgentStatus.PROCESSING, 'Saving SOAP note');
       await this.saveSOAPNote(context.consultationId, soapNote);
 
-      this.updateStatus('completed', 'SOAP note generated successfully');
+      this.updateStatus(AgentStatus.COMPLETED, 'SOAP note generated successfully');
       
       this.sendMessage({
-        type: 'document_generated',
-        agentType: 'scribe',
-        content: 'SOAP note has been generated and is ready for review',
+        type: 'COMPLETE',
+        agentId: 'scribe-' + context.consultationId,
+        agentType: AgentType.SCRIBE,
+        consultationId: context.consultationId,
         data: soapNote,
       });
 
@@ -106,8 +107,7 @@ Patient Information:
 - Name: ${patient.firstName} ${patient.lastName}
 - DOB: ${patient.dob}
 - Gender: ${patient.gender}
-- Known Allergies: ${patient.allergies?.join(', ') || 'None documented'}
-- Medical History: ${patient.medicalHistory || 'None documented'}`;
+- Known Allergies: ${patient.allergies?.join(', ') || 'None documented'}`;
 
     const userPrompt = `Based on the following consultation transcript, generate a structured SOAP note:
 
@@ -158,14 +158,11 @@ Only include vitalSigns if they are explicitly mentioned in the transcript.`;
     await prisma.sOAPNote.create({
       data: {
         consultationId,
-        chiefComplaint: soapNote.chiefComplaint,
         subjective: soapNote.subjective,
         objective: soapNote.objective,
         assessment: soapNote.assessment,
         plan: soapNote.plan,
-        diagnosis: soapNote.diagnosis,
-        vitalSigns: soapNote.vitalSigns as any,
-        approved: false,
+        isApproved: false,
       },
     });
 
@@ -190,17 +187,16 @@ Only include vitalSigns if they are explicitly mentioned in the transcript.`;
   /**
    * Approve SOAP note
    */
-  async approveSOAPNote(soapNoteId: string, doctorId: string): Promise<void> {
+  async approveSOAPNote(soapNoteId: string, _doctorId: string): Promise<void> {
     await prisma.sOAPNote.update({
       where: { id: soapNoteId },
       data: {
-        approved: true,
+        isApproved: true,
         approvedAt: new Date(),
-        approvedBy: doctorId,
       },
     });
 
-    logger.info(`SOAP note ${soapNoteId} approved by ${doctorId}`);
+    logger.info(`SOAP note ${soapNoteId} approved`);
   }
 }
 
