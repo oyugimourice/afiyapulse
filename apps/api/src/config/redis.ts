@@ -4,6 +4,12 @@ import logger from './logger';
 
 type RedisValue = string | number | boolean | object | null;
 
+// Redis reconnection strategy constants
+const MAX_RETRIES_PROD = 10;
+const MAX_RETRIES_DEV = 3;
+const BASE_RETRY_DELAY_MS = 100;
+const MAX_RETRY_DELAY_MS = 3000;
+
 export let isConnected = false;
 
 interface RedisAdapter {
@@ -151,8 +157,148 @@ class UpstashRedisAdapter implements RedisAdapter {
   }
 }
 
+class NoOpRedisAdapter implements RedisAdapter {
+  async get(): Promise<string | null> {
+    return null;
+  }
+
+  async set(): Promise<string | null> {
+    return null;
+  }
+
+  async setEx(): Promise<string | null> {
+    return null;
+  }
+
+  async del(): Promise<number> {
+    return 0;
+  }
+
+  async exists(): Promise<number> {
+    return 0;
+  }
+
+  async incr(): Promise<number> {
+    return 0;
+  }
+
+  async expire(): Promise<number> {
+    return 0;
+  }
+
+  async ping(): Promise<string | null> {
+    return null;
+  }
+
+  async quit(): Promise<string> {
+    return 'OK';
+  }
+
+  async keys(): Promise<string[]> {
+    return [];
+  }
+
+  async ttl(): Promise<number> {
+    return -1;
+  }
+
+  async flushDb(): Promise<string> {
+    return 'OK';
+  }
+
+  async info(): Promise<string> {
+    return 'No Redis connection';
+  }
+
+  async dbSize(): Promise<number> {
+    return 0;
+  }
+}
+
 const isProduction = process.env.NODE_ENV === 'production';
 
+/**
+ * Creates a reconnection strategy for Redis TCP connections
+ */
+function createReconnectStrategy(isProduction: boolean) {
+  const maxRetries = isProduction ? MAX_RETRIES_PROD : MAX_RETRIES_DEV;
+
+  return (retries: number) => {
+    if (retries > maxRetries) {
+      if (isProduction) {
+        logger.error('Redis: Too many reconnection attempts, giving up');
+      } else {
+        logger.warn('Redis: Connection unavailable, continuing without cache');
+      }
+      return new Error('Too many retries');
+    }
+
+    return Math.min(retries * BASE_RETRY_DELAY_MS, MAX_RETRY_DELAY_MS);
+  };
+}
+
+/**
+ * Sets up event handlers for Redis TCP client
+ */
+function setupRedisEventHandlers(client: any, isProduction: boolean): void {
+  client.on('error', (err: Error) => {
+    if (isProduction || isConnected) {
+      logger.error('Redis Client Error:', err);
+    }
+  });
+
+  client.on('connect', () => {
+    isConnected = true;
+    logger.info('Redis: Connected successfully');
+  });
+
+  client.on('reconnecting', () => {
+    if (isProduction || isConnected) {
+      logger.warn('Redis: Reconnecting...');
+    }
+  });
+
+  client.on('ready', () => {
+    logger.info('Redis: Ready to accept commands');
+  });
+}
+
+/**
+ * Creates a TCP Redis client with proper configuration and event handlers
+ */
+function createTcpRedisClient(tcpUrl: string): RedisAdapter {
+  const isUpstashTls = tcpUrl.startsWith('rediss://');
+  const client = createClient({
+    url: tcpUrl,
+    socket: {
+      tls: isUpstashTls,
+      reconnectStrategy: createReconnectStrategy(isProduction),
+    },
+  });
+
+  setupRedisEventHandlers(client, isProduction);
+
+  // IIFE is necessary because this function is called at module level (synchronous context)
+  // but client.connect() is async. We handle the connection asynchronously without blocking.
+  (async () => {
+    try {
+      await client.connect();
+    } catch (error) {
+      if (isProduction) {
+        logger.error('Redis: Failed to connect:', error);
+      } else {
+        logger.warn('Redis: Not available, running without cache (this is normal in development)');
+      }
+    }
+  })();
+
+  return new TcpRedisAdapter(client);
+}
+
+/**
+ * Creates and configures a Redis client adapter based on available credentials
+ * Supports Upstash REST, TCP Redis, or falls back to a no-op adapter
+ */
 function createRedisClient(): RedisAdapter {
   const tcpUrl = process.env.REDIS_URL?.trim();
   const restUrl = process.env.UPSTASH_REDIS_REST_URL?.trim();
@@ -170,108 +316,11 @@ function createRedisClient(): RedisAdapter {
   }
 
   if (tcpUrl) {
-    const isUpstashTls = tcpUrl.startsWith('rediss://');
-    const client = createClient({
-      url: tcpUrl,
-      socket: {
-        tls: isUpstashTls,
-        reconnectStrategy: (retries) => {
-          const maxRetries = isProduction ? 10 : 3;
-          if (retries > maxRetries) {
-            if (isProduction) {
-              logger.error('Redis: Too many reconnection attempts, giving up');
-            } else {
-              logger.warn('Redis: Connection unavailable, continuing without cache');
-            }
-            return new Error('Too many retries');
-          }
-
-          return Math.min(retries * 100, 3000);
-        },
-      },
-    });
-
-    client.on('error', (err) => {
-      if (isProduction || isConnected) {
-        logger.error('Redis Client Error:', err);
-      }
-    });
-
-    client.on('connect', () => {
-      isConnected = true;
-      logger.info('Redis: Connected successfully');
-    });
-
-    client.on('reconnecting', () => {
-      if (isProduction || isConnected) {
-        logger.warn('Redis: Reconnecting...');
-      }
-    });
-
-    client.on('ready', () => {
-      logger.info('Redis: Ready to accept commands');
-    });
-
-    (async () => {
-      try {
-        await client.connect();
-      } catch (error) {
-        if (isProduction) {
-          logger.error('Redis: Failed to connect:', error);
-        } else {
-          logger.warn('Redis: Not available, running without cache (this is normal in development)');
-        }
-      }
-    })();
-
-    return new TcpRedisAdapter(client);
+    return createTcpRedisClient(tcpUrl);
   }
 
   logger.warn('Redis: No credentials configured, running without cache');
-  return {
-    async get() {
-      return null;
-    },
-    async set() {
-      return null;
-    },
-    async setEx() {
-      return null;
-    },
-    async del() {
-      return 0;
-    },
-    async exists() {
-      return 0;
-    },
-    async incr() {
-      return 0;
-    },
-    async expire() {
-      return 0;
-    },
-    async ping() {
-      return null;
-    },
-    async quit() {
-      return 'OK';
-    },
-    async keys() {
-      return [];
-    },
-    async ttl() {
-      return -1;
-    },
-    async flushDb() {
-      return 'OK';
-    },
-    async info() {
-      return 'No Redis connection';
-    },
-    async dbSize() {
-      return 0;
-    },
-  };
+  return new NoOpRedisAdapter();
 }
 
 const redisClient = createRedisClient();
