@@ -178,4 +178,4 @@ export const handleConsultationEvents = (socket: AuthenticatedSocket, io: any) =
   });
 };
 
-// Made with Bob
+// 

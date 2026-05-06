@@ -4,6 +4,7 @@ import { prisma } from '@afiyapulse/database';
 import llmService from '../services/llm.service';
 import mcpClient from '../services/mcp-client.service';
 import logger from '../config/logger';
+import { z } from 'zod';
 
 // Enum for appointment types
 enum AppointmentType {
@@ -25,6 +26,21 @@ type FollowUpIntent =
       reason?: string;
       instructions?: string;
     };
+
+// Zod schema for follow-up intent validation
+const FollowUpIntentSchema = z.union([
+  z.object({
+    needed: z.literal(false),
+  }),
+  z.object({
+    needed: z.literal(true),
+    type: z.enum(['FOLLOW_UP', 'LAB_WORK', 'IMAGING', 'SPECIALIST', 'PROCEDURE']),
+    timeframe: z.string().optional(),
+    duration: z.number().optional(),
+    reason: z.string().optional(),
+    instructions: z.string().optional(),
+  }),
+]);
 
 interface FollowUpOutput {
   type: AppointmentType;
@@ -328,7 +344,7 @@ Respond ONLY with valid JSON in this exact format:
         }
       );
 
-      const parsed = this.parseStructuredOutput<FollowUpIntent>(response.content, {});
+      const parsed = this.parseStructuredOutput<FollowUpIntent>(response.content, FollowUpIntentSchema);
 
       // Validate and normalize the parsed response
       if (parsed.needed && parsed.type) {
@@ -473,4 +489,4 @@ Respond with JSON only.`;
 // Export singleton instance
 export const followUpSchedulerAgent = new FollowUpSchedulerAgent();
 
-// Made with Bob
+// 

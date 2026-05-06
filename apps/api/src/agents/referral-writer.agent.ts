@@ -4,6 +4,7 @@ import { prisma } from '@afiyapulse/database';
 import llmService from '../services/llm.service';
 import mcpClient from '../services/mcp-client.service';
 import logger from '../config/logger';
+import { z } from 'zod';
 
 interface ReferralOutput {
   specialty: string;
@@ -16,6 +17,26 @@ interface ReferralOutput {
   specificQuestions: string[];
   notes: string;
 }
+
+// Zod schemas for validation
+const ReferralIntentSchema = z.object({
+  needed: z.boolean(),
+  specialty: z.string().optional(),
+  urgency: z.enum(['ROUTINE', 'URGENT', 'EMERGENCY']).optional(),
+  reason: z.string().optional(),
+});
+
+const ReferralOutputSchema = z.object({
+  specialty: z.string(),
+  reason: z.string(),
+  urgency: z.enum(['ROUTINE', 'URGENT', 'EMERGENCY']),
+  clinicalSummary: z.string(),
+  relevantHistory: z.string(),
+  currentMedications: z.string(),
+  recentLabResults: z.string(),
+  specificQuestions: z.array(z.string()),
+  notes: z.string(),
+});
 
 export class ReferralWriterAgent extends BaseAgent {
   constructor() {
@@ -126,7 +147,7 @@ Respond with JSON only.`;
         }
       );
 
-      return this.parseStructuredOutput(response.content, {});
+      return this.parseStructuredOutput(response.content, ReferralIntentSchema);
     } catch (error) {
       logger.error('[Referral Writer] Failed to detect referral intent:', error);
       return { needed: false };
@@ -197,7 +218,7 @@ Create a comprehensive referral letter. Respond with JSON only.`;
         }
       );
 
-      return this.parseStructuredOutput(response.content, {});
+      return this.parseStructuredOutput(response.content, ReferralOutputSchema);
     } catch (error) {
       logger.error('[Referral Writer] Failed to generate referral:', error);
       throw new Error('Failed to generate referral letter');
@@ -342,4 +363,4 @@ ${referralData.notes ? `\nADDITIONAL NOTES:\n${referralData.notes}` : ''}`;
 // Export singleton instance
 export const referralWriterAgent = new ReferralWriterAgent();
 
-// Made with Bob
+// 

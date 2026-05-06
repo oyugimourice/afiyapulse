@@ -127,7 +127,7 @@ docs/
 - Use `###` for subsections
 - Use code blocks with language specification
 - Include table of contents for long documents
-- Add "Made with Bob" footer to generated files
+- Add "" footer to generated files
 
 ## 🔗 External Resources
 

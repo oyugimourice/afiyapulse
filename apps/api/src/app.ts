@@ -1,4 +1,4 @@
-import express, { Application } from 'express';
+import express, { Application, Request, Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
@@ -73,7 +73,7 @@ function configureRoutes(app: Application): void {
  */
 function configureErrorHandling(app: Application): void {
   // 404 handler
-  app.use((req, res) => {
+  app.use((req: Request, res: Response): void => {
     res.status(404).json({
       success: false,
       error: 'Route not found',
@@ -157,4 +157,4 @@ export function createApp(): { app: Application; httpServer: Server; io: SocketI
 
 export default createApp;
 
-// Made with Bob
+// 

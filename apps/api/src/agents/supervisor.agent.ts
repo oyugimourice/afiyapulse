@@ -18,6 +18,7 @@ export class SupervisorAgent extends EventEmitter {
   private patientId: string;
   private doctorId: string;
   private isRunning: boolean = false;
+  private listenerRefs: Map<EventEmitter, Array<{ event: string; listener: (...args: any[]) => void }>> = new Map();
 
   constructor(config: SupervisorConfig) {
     super();
@@ -207,31 +208,44 @@ export class SupervisorAgent extends EventEmitter {
   private attachAgentListeners(agent: EventEmitter): void {
     const basePayload = { consultationId: this.consultationId };
 
-    agent.on('status', (status) => {
+    const statusListener = (status: any) => {
       this.emit('agent_status', { ...basePayload, ...status });
-    });
+    };
 
-    agent.on('message', (message) => {
+    const messageListener = (message: any) => {
       this.emit('agent_message', { ...basePayload, ...message });
-    });
+    };
 
-    agent.on('error', (error) => {
+    const errorListener = (error: any) => {
       this.emit('agent_error', { ...basePayload, ...error });
-    });
+    };
+
+    agent.on('status', statusListener);
+    agent.on('message', messageListener);
+    agent.on('error', errorListener);
+
+    // Store listener references for cleanup
+    if (!this.listenerRefs.has(agent)) {
+      this.listenerRefs.set(agent, []);
+    }
+    this.listenerRefs.get(agent)!.push(
+      { event: 'status', listener: statusListener },
+      { event: 'message', listener: messageListener },
+      { event: 'error', listener: errorListener }
+    );
   }
 
   /**
    * Clean up agent listeners to prevent memory leaks
    */
   private cleanupAgentListeners(): void {
-    const agents = [
-      clinicalScribeAgent,
-      prescriptionDrafterAgent,
-      referralWriterAgent,
-      followUpSchedulerAgent,
-    ];
-
-    agents.forEach(agent => agent.removeAllListeners());
+    // Remove only the specific listeners attached by this supervisor instance
+    this.listenerRefs.forEach((listeners, agent) => {
+      listeners.forEach(({ event, listener }) => {
+        agent.removeListener(event, listener);
+      });
+    });
+    this.listenerRefs.clear();
   }
 
   /**
@@ -363,4 +377,4 @@ class SupervisorAgentService {
 
 export default new SupervisorAgentService();
 
-// Made with Bob
+// 

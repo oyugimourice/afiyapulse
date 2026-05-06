@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { authenticate, authorize } from '../middleware/auth.middleware';
+import { UserRole } from '@afiyapulse/database';
 import consultationService from '../services/consultation.service';
 import storageService from '../services/storage.service';
 import watsonService from '../services/watson.service';
@@ -33,7 +34,7 @@ const router = Router();
 router.post(
   '/',
   authenticate,
-  authorize(['DOCTOR', 'NURSE']),
+  authorize('DOCTOR', 'NURSE'),
   async (req, res, next) => {
     try {
       const { patientId } = req.body;
@@ -68,7 +69,7 @@ router.get('/', authenticate, async (req, res, next) => {
 
     const result = await consultationService.listConsultations({
       userId: req.user!.id,
-      userRole: req.user!.role,
+      userRole: req.user!.role as UserRole,
       status: status as any,
       patientId: patientId as string,
       page: page ? parseInt(page as string) : undefined,
@@ -116,7 +117,7 @@ router.get('/:id', authenticate, async (req, res, next) => {
 router.patch(
   '/:id',
   authenticate,
-  authorize(['DOCTOR', 'NURSE']),
+  authorize('DOCTOR', 'NURSE'),
   async (req, res, next) => {
     try {
       const { id } = req.params;
@@ -146,7 +147,7 @@ router.patch(
 router.post(
   '/:id/complete',
   authenticate,
-  authorize(['DOCTOR', 'NURSE']),
+  authorize('DOCTOR', 'NURSE'),
   async (req, res, next) => {
     try {
       const { id } = req.params;
@@ -227,7 +228,7 @@ router.post('/:id/transcripts', authenticate, async (req, res, next) => {
 router.post(
   '/:id/upload-audio',
   authenticate,
-  authorize(['DOCTOR', 'NURSE']),
+  authorize('DOCTOR', 'NURSE'),
   upload.single('audio'),
   async (req, res, next) => {
     try {
@@ -301,7 +302,7 @@ router.post(
 router.post(
   '/:id/stream-audio',
   authenticate,
-  authorize(['DOCTOR', 'NURSE']),
+  authorize('DOCTOR', 'NURSE'),
   upload.single('audioChunk'),
   async (req, res, next) => {
     try {
@@ -339,7 +340,7 @@ router.post(
         const transcript = await consultationService.addTranscript({
           consultationId: id,
           text: transcription.text,
-          speaker: transcription.speaker || 'SYSTEM',
+          speaker: (transcription.speaker as 'DOCTOR' | 'PATIENT' | 'SYSTEM') || 'SYSTEM',
           confidence: transcription.confidence,
         });
         savedTranscripts.push(transcript);
@@ -361,4 +362,4 @@ router.post(
 
 export default router;
 
-// Made with Bob
+// 

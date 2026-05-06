@@ -160,7 +160,7 @@ export function invalidateCacheMiddleware(
   pattern: string,
   prefix?: string
 ) {
-  return async (req: Request, res: Response, next: NextFunction) => {
+  return async (_req: Request, _res: Response, next: NextFunction) => {
     try {
       const fullPattern = prefix ? `${prefix}:${pattern}` : pattern;
       await cacheService.deletePattern(fullPattern);
@@ -176,7 +176,7 @@ export function invalidateCacheMiddleware(
  * Cache statistics endpoint middleware
  */
 export async function cacheStatsMiddleware(
-  req: Request,
+  _req: Request,
   res: Response,
   next: NextFunction
 ) {
@@ -191,4 +191,4 @@ export async function cacheStatsMiddleware(
   }
 }
 
-// Made with Bob
+// 

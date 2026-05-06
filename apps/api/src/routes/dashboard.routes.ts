@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth.middleware';
 import dashboardService from '../services/dashboard.service';
-import logger from '../config/logger';
 
 /**
  * Dashboard Routes
@@ -200,4 +199,4 @@ router.get('/summary', async (req, res, next) => {
 
 export default router;
 
-// Made with Bob
+// 

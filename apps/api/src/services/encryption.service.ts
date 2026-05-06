@@ -16,7 +16,7 @@ class EncryptionService {
   private keyLength = 32; // 256 bits
   private ivLength = 16; // 128 bits
   private tagLength = 16; // 128 bits
-  private saltLength = 64;
+  // private saltLength = 64; // Not used in current implementation
 
   /**
    * Get encryption key from environment
@@ -257,4 +257,4 @@ class EncryptionService {
 
 export default new EncryptionService();
 
-// Made with Bob
+// 

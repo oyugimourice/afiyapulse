@@ -1,3 +1,9 @@
+import dotenv from 'dotenv';
+import path from 'path';
+
+// Load environment variables from the root .env file
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+
 import { PrismaClient, UserRole, Gender } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 
@@ -104,5 +110,3 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
-
-// Made with Bob

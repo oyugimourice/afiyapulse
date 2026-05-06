@@ -120,13 +120,17 @@ class DashboardService {
             consultationsWithDuration.length
           : 0;
 
-      // Patient statistics
-      const uniquePatients = await prisma.consultation.findMany({
+      // Patient statistics - Count all patients, not just those with consultations
+      const totalPatients = await prisma.patient.count();
+      
+      // Get patients with consultations for this doctor
+      const patientsWithConsultations = await prisma.consultation.findMany({
         where: { doctorId },
         distinct: ['patientId'],
         select: { patientId: true },
       });
 
+      // Count new vs returning patients (based on consultation count)
       const newPatients = await prisma.consultation.groupBy({
         by: ['patientId'],
         where: { doctorId },
@@ -244,9 +248,9 @@ class DashboardService {
           averageDuration: Math.round(averageDuration),
         },
         patients: {
-          total: uniquePatients.length,
+          total: totalPatients,
           new: newPatients.length,
-          returning: uniquePatients.length - newPatients.length,
+          returning: patientsWithConsultations.length - newPatients.length,
         },
         documentation: {
           pendingReviews,
@@ -444,29 +448,28 @@ class DashboardService {
   /**
    * Get patient demographics
    */
-  async getPatientDemographics(doctorId: string): Promise<{
+  async getPatientDemographics(_doctorId: string): Promise<{
     byGender: { gender: string; count: number }[];
     byAgeGroup: { ageGroup: string; count: number }[];
   }> {
     try {
-      const patients = await prisma.consultation.findMany({
-        where: { doctorId },
-        distinct: ['patientId'],
-        include: { patient: true },
+      // Get all patients (not just those with consultations for this doctor)
+      const allPatients = await prisma.patient.findMany({
+        select: { gender: true, dob: true },
       });
 
       // Group by gender
       const genderMap = new Map<string, number>();
-      patients.forEach((c) => {
-        const gender = c.patient.gender;
+      allPatients.forEach((patient) => {
+        const gender = patient.gender;
         genderMap.set(gender, (genderMap.get(gender) || 0) + 1);
       });
 
       // Group by age
       const ageGroupMap = new Map<string, number>();
       const now = new Date();
-      patients.forEach((c) => {
-        const age = now.getFullYear() - c.patient.dob.getFullYear();
+      allPatients.forEach((patient) => {
+        const age = now.getFullYear() - patient.dob.getFullYear();
         let ageGroup: string;
         if (age < 18) ageGroup = '0-17';
         else if (age < 30) ageGroup = '18-29';
@@ -531,4 +534,4 @@ class DashboardService {
 
 export default new DashboardService();
 
-// Made with Bob
+// 

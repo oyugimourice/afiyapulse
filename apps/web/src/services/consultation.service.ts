@@ -60,33 +60,39 @@ export interface UploadAudioChunkData {
 
 class ConsultationService {
   async getConsultations(params: ConsultationListParams = {}): Promise<ConsultationListResponse> {
-    const response = await apiClient.get<ConsultationListResponse>('/consultations', { params });
-    return response.data;
+    const response = await apiClient.get<{ success: boolean; data: any; pagination: any }>('/consultations', { params });
+    return {
+      consultations: response.data.data,
+      total: response.data.pagination.total,
+      page: response.data.pagination.page,
+      limit: response.data.pagination.limit,
+      totalPages: response.data.pagination.totalPages,
+    };
   }
 
   async getConsultation(id: string): Promise<Consultation> {
-    const response = await apiClient.get<Consultation>(`/consultations/${id}`);
-    return response.data;
+    const response = await apiClient.get<{ success: boolean; data: Consultation }>(`/consultations/${id}`);
+    return response.data.data;
   }
 
   async createConsultation(data: CreateConsultationData): Promise<Consultation> {
-    const response = await apiClient.post<Consultation>('/consultations', data);
-    return response.data;
+    const response = await apiClient.post<{ success: boolean; data: Consultation }>('/consultations', data);
+    return response.data.data;
   }
 
   async updateConsultation(id: string, data: Partial<Consultation>): Promise<Consultation> {
-    const response = await apiClient.patch<Consultation>(`/consultations/${id}`, data);
-    return response.data;
+    const response = await apiClient.patch<{ success: boolean; data: Consultation }>(`/consultations/${id}`, data);
+    return response.data.data;
   }
 
   async completeConsultation(id: string): Promise<Consultation> {
-    const response = await apiClient.post<Consultation>(`/consultations/${id}/complete`);
-    return response.data;
+    const response = await apiClient.post<{ success: boolean; data: Consultation }>(`/consultations/${id}/complete`);
+    return response.data.data;
   }
 
   async cancelConsultation(id: string): Promise<Consultation> {
-    const response = await apiClient.post<Consultation>(`/consultations/${id}/cancel`);
-    return response.data;
+    const response = await apiClient.post<{ success: boolean; data: Consultation }>(`/consultations/${id}/cancel`);
+    return response.data.data;
   }
 
   async uploadAudioChunk(consultationId: string, data: UploadAudioChunkData): Promise<void> {
@@ -103,28 +109,28 @@ class ConsultationService {
   }
 
   async getTranscript(consultationId: string): Promise<TranscriptSegment[]> {
-    const response = await apiClient.get<TranscriptSegment[]>(
+    const response = await apiClient.get<{ success: boolean; data: TranscriptSegment[] }>(
       `/consultations/${consultationId}/transcript`
     );
-    return response.data;
+    return response.data.data;
   }
 
   async getSOAPNote(consultationId: string): Promise<any> {
-    const response = await apiClient.get(`/consultations/${consultationId}/soap-note`);
-    return response.data;
+    const response = await apiClient.get<{ success: boolean; data: any }>(`/consultations/${consultationId}/soap-note`);
+    return response.data.data;
   }
 
   async getPrescription(consultationId: string): Promise<any> {
-    const response = await apiClient.get(`/consultations/${consultationId}/prescription`);
-    return response.data;
+    const response = await apiClient.get<{ success: boolean; data: any }>(`/consultations/${consultationId}/prescription`);
+    return response.data.data;
   }
 
   async getReferral(consultationId: string): Promise<any> {
-    const response = await apiClient.get(`/consultations/${consultationId}/referral`);
-    return response.data;
+    const response = await apiClient.get<{ success: boolean; data: any }>(`/consultations/${consultationId}/referral`);
+    return response.data.data;
   }
 }
 
 export const consultationService = new ConsultationService();
 
-// Made with Bob
+// 

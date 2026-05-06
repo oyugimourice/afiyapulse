@@ -7,4 +7,3 @@ export type { PrismaClient, Prisma } from '../prisma/generated/prisma/client';
 export * from '../prisma/generated/prisma/enums';
 export * from '../prisma/generated/prisma/models';
 
-// Made with Bob

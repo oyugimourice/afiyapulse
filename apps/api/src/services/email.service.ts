@@ -1,6 +1,10 @@
 import nodemailer, { Transporter } from 'nodemailer';
 import logger from '../config/logger';
 import { AppError } from '../middleware/error.middleware';
+import { WelcomeEmailTemplate } from './email-templates/welcome.template';
+import { PasswordResetEmailTemplate } from './email-templates/password-reset.template';
+import { ConsultationCompletedEmailTemplate } from './email-templates/consultation-completed.template';
+import { AppointmentReminderEmailTemplate } from './email-templates/appointment-reminder.template';
 
 export interface EmailOptions {
   to: string | string[];
@@ -52,6 +56,10 @@ class EmailService {
   private transporter: Transporter;
   private fromEmail: string;
   private fromName: string;
+  private welcomeTemplate: WelcomeEmailTemplate;
+  private passwordResetTemplate: PasswordResetEmailTemplate;
+  private consultationCompletedTemplate: ConsultationCompletedEmailTemplate;
+  private appointmentReminderTemplate: AppointmentReminderEmailTemplate;
 
   constructor() {
     // Initialize email transporter
@@ -82,6 +90,12 @@ class EmailService {
         },
       });
     }
+
+    // Initialize email templates
+    this.welcomeTemplate = new WelcomeEmailTemplate();
+    this.passwordResetTemplate = new PasswordResetEmailTemplate();
+    this.consultationCompletedTemplate = new ConsultationCompletedEmailTemplate();
+    this.appointmentReminderTemplate = new AppointmentReminderEmailTemplate();
 
     logger.info('Email service initialized');
   }
@@ -184,7 +198,7 @@ class EmailService {
     to: string,
     data: AppointmentReminderEmailData
   ): Promise<void> {
-    const html = this.getAppointmentReminderEmailTemplate(data);
+    const html = this.appointmentReminderTemplate.generate(data);
     const text = `Hi ${data.patientName}, this is a reminder for your ${data.appointmentType} appointment with Dr. ${data.doctorName} on ${data.appointmentDate} at ${data.appointmentTime}.`;
 
     await this.sendEmail({
@@ -200,147 +214,15 @@ class EmailService {
    */
 
   private getWelcomeEmailTemplate(data: WelcomeEmailData): string {
-    return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Welcome to AfiyaPulse</title>
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-          .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-          .button { display: inline-block; padding: 12px 30px; background: #667eea; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-          .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>Welcome to AfiyaPulse!</h1>
-          </div>
-          <div class="content">
-            <h2>Hi ${data.name},</h2>
-            <p>Welcome to AfiyaPulse - your AI-powered clinical documentation assistant!</p>
-            <p>Your account has been successfully created with the email: <strong>${data.email}</strong></p>
-            <p>With AfiyaPulse, you can:</p>
-            <ul>
-              <li>Record and transcribe patient consultations in real-time</li>
-              <li>Generate SOAP notes automatically</li>
-              <li>Create prescriptions with drug interaction checks</li>
-              <li>Draft referral letters</li>
-              <li>Schedule follow-up appointments</li>
-            </ul>
-            <p>Get started by logging in to your account and exploring the features.</p>
-            <a href="${process.env.FRONTEND_URL}/login" class="button">Login to Your Account</a>
-            <p>If you have any questions, feel free to reach out to our support team.</p>
-            <p>Best regards,<br>The AfiyaPulse Team</p>
-          </div>
-          <div class="footer">
-            <p>&copy; ${new Date().getFullYear()} AfiyaPulse. All rights reserved.</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
+    return this.welcomeTemplate.generate(data);
   }
 
   private getPasswordResetEmailTemplate(data: PasswordResetEmailData): string {
-    return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Password Reset Request</title>
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: #667eea; color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-          .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-          .button { display: inline-block; padding: 12px 30px; background: #667eea; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-          .warning { background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; }
-          .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>Password Reset Request</h1>
-          </div>
-          <div class="content">
-            <h2>Hi ${data.name},</h2>
-            <p>We received a request to reset your password for your AfiyaPulse account.</p>
-            <p>Click the button below to reset your password:</p>
-            <a href="${data.resetLink}" class="button">Reset Password</a>
-            <div class="warning">
-              <strong>⚠️ Security Notice:</strong>
-              <p>This link will expire in ${data.expiresIn}. If you didn't request a password reset, please ignore this email or contact support if you have concerns.</p>
-            </div>
-            <p>For security reasons, this link can only be used once.</p>
-            <p>If the button doesn't work, copy and paste this link into your browser:</p>
-            <p style="word-break: break-all; color: #667eea;">${data.resetLink}</p>
-            <p>Best regards,<br>The AfiyaPulse Team</p>
-          </div>
-          <div class="footer">
-            <p>&copy; ${new Date().getFullYear()} AfiyaPulse. All rights reserved.</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
+    return this.passwordResetTemplate.generate(data);
   }
 
   private getConsultationCompletedEmailTemplate(data: ConsultationCompletedEmailData): string {
-    return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Consultation Completed</title>
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-          .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-          .info-box { background: white; border-left: 4px solid #667eea; padding: 15px; margin: 20px 0; }
-          .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>✅ Consultation Completed</h1>
-          </div>
-          <div class="content">
-            <h2>Hi ${data.patientName},</h2>
-            <p>Your consultation has been successfully completed!</p>
-            <div class="info-box">
-              <p><strong>Doctor:</strong> Dr. ${data.doctorName}</p>
-              <p><strong>Date:</strong> ${data.consultationDate}</p>
-              <p><strong>Consultation ID:</strong> ${data.consultationId}</p>
-            </div>
-            <p>Our AI system is currently processing your consultation and generating your clinical documents, including:</p>
-            <ul>
-              <li>SOAP Note (Clinical Summary)</li>
-              <li>Prescription (if applicable)</li>
-              <li>Referral Letter (if applicable)</li>
-              <li>Follow-up Appointment (if scheduled)</li>
-            </ul>
-            <p>You will receive another email once your documents are ready for review.</p>
-            <p>If you have any questions about your consultation, please contact your healthcare provider.</p>
-            <p>Best regards,<br>The AfiyaPulse Team</p>
-          </div>
-          <div class="footer">
-            <p>&copy; ${new Date().getFullYear()} AfiyaPulse. All rights reserved.</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
+    return this.consultationCompletedTemplate.generate(data);
   }
 
   private getDocumentsReadyEmailTemplate(data: DocumentsReadyEmailData): string {
@@ -391,62 +273,9 @@ class EmailService {
     `;
   }
 
-  private getAppointmentReminderEmailTemplate(data: AppointmentReminderEmailData): string {
-    return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Appointment Reminder</title>
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-          .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-          .appointment-box { background: white; border: 2px solid #f59e0b; padding: 20px; border-radius: 5px; margin: 20px 0; text-align: center; }
-          .appointment-box h3 { color: #f59e0b; margin: 0 0 15px 0; }
-          .appointment-detail { font-size: 18px; margin: 10px 0; }
-          .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>🔔 Appointment Reminder</h1>
-          </div>
-          <div class="content">
-            <h2>Hi ${data.patientName},</h2>
-            <p>This is a friendly reminder about your upcoming appointment:</p>
-            <div class="appointment-box">
-              <h3>Appointment Details</h3>
-              <div class="appointment-detail"><strong>Doctor:</strong> Dr. ${data.doctorName}</div>
-              <div class="appointment-detail"><strong>Date:</strong> ${data.appointmentDate}</div>
-              <div class="appointment-detail"><strong>Time:</strong> ${data.appointmentTime}</div>
-              <div class="appointment-detail"><strong>Type:</strong> ${data.appointmentType}</div>
-            </div>
-            <p><strong>Please remember to:</strong></p>
-            <ul>
-              <li>Arrive 10-15 minutes early</li>
-              <li>Bring your ID and insurance card</li>
-              <li>Bring a list of current medications</li>
-              <li>Prepare any questions you may have</li>
-            </ul>
-            <p>If you need to reschedule or cancel, please contact us as soon as possible.</p>
-            <p>We look forward to seeing you!</p>
-            <p>Best regards,<br>The AfiyaPulse Team</p>
-          </div>
-          <div class="footer">
-            <p>&copy; ${new Date().getFullYear()} AfiyaPulse. All rights reserved.</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
-  }
 }
 
 export const emailService = new EmailService();
 export default emailService;
 
-// Made with Bob
+// 

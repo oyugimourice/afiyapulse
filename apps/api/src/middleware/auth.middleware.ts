@@ -13,7 +13,7 @@ export interface AuthRequest extends Request {
 
 export const authenticate = async (
   req: AuthRequest,
-  res: Response,
+  _res: Response,
   next: NextFunction
 ) => {
   try {
@@ -54,7 +54,7 @@ export const authenticate = async (
 
 // Role-based access control middleware
 export const authorize = (...allowedRoles: UserRole[]) => {
-  return (req: AuthRequest, res: Response, next: NextFunction) => {
+  return (req: AuthRequest, _res: Response, next: NextFunction) => {
     if (!req.user) {
       return next(new AppError('Authentication required', 401));
     }
@@ -69,4 +69,4 @@ export const authorize = (...allowedRoles: UserRole[]) => {
   };
 };
 
-// Made with Bob
+// 

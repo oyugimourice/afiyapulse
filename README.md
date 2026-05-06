@@ -1,5 +1,7 @@
 # AfiyaPulse (ClinicalCopilot)
 
+[![The pitch:](https://docs.google.com/presentation/d/1hu09RKgNG3L1CLggok4M1BDNHF2l5_BWSuumXIUEgpI/edit?slide=id.g15f40fdf393fc22a_98#slide=id.g15f40fdf393fc22a_98)](https://docs.google.com/presentation/d/1hu09RKgNG3L1CLggok4M1BDNHF2l5_BWSuumXIUEgpI/edit?slide=id.g15f40fdf393fc22a_98#slide=id.g15f40fdf393fc22a_98)
+
 > **Ambient AI Agent System for Clinical Documentation**  
 > Eliminating 575 hours of annual paperwork per doctor through real-time AI-powered documentation
 

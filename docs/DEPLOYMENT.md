@@ -12,6 +12,7 @@ This guide provides step-by-step instructions for deploying AfiyaPulse to IBM Cl
 ## Architecture Overview
 
 AfiyaPulse on IBM Cloud uses:
+
 - **IBM Cloud Foundry** or **IBM Code Engine** for application hosting
 - **IBM Cloud Object Storage (COS)** for audio file storage
 - **IBM Watson Speech-to-Text** for transcription
@@ -43,6 +44,7 @@ ibmcloud resource service-key afiyapulse-cos-hmac
 ```
 
 **Save the following from the output:**
+
 - `access_key_id` → `AWS_ACCESS_KEY_ID`
 - `secret_access_key` → `AWS_SECRET_ACCESS_KEY`
 
@@ -55,7 +57,7 @@ ibmcloud plugin install cloud-object-storage
 # Create bucket (replace REGION with us-south, eu-gb, etc.)
 ibmcloud cos bucket-create --bucket afiyapulse-audio \
   --ibm-service-instance-id <COS_INSTANCE_ID> \
-  --region us-south
+  --region us-east
 ```
 
 ### 1.3 Create Watson Speech-to-Text Service
@@ -74,6 +76,7 @@ ibmcloud resource service-key afiyapulse-watson-stt-key
 ```
 
 **Save the following:**
+
 - `apikey` → `WATSON_STT_API_KEY`
 - `url` → `WATSON_STT_URL`
 
@@ -236,7 +239,7 @@ npm run db:seed
 
 ## Step 6: Configure Custom Domain (Optional)
 
-### For Cloud Foundry:
+### For Cloud Foundry
 
 ```bash
 # Map custom domain
@@ -247,7 +250,7 @@ ibmcloud cf map-route afiyapulse-api yourdomain.com \
 ibmcloud cf create-domain <your-org> yourdomain.com
 ```
 
-### For Code Engine:
+### For Code Engine
 
 ```bash
 # Create custom domain mapping
@@ -441,7 +444,8 @@ ibmcloud ce application logs --name afiyapulse-api
 ## Support
 
 For issues or questions:
-- IBM Cloud Support: https://cloud.ibm.com/unifiedsupport
+
+- IBM Cloud Support: <https://cloud.ibm.com/unifiedsupport>
 - AfiyaPulse Documentation: See README.md
 - GitHub Issues: [Your repository URL]
 

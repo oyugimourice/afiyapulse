@@ -34,6 +34,7 @@ The consultation recording infrastructure provides real-time audio capture, tran
 ### REST Endpoints
 
 #### Create Consultation
+
 ```http
 POST /api/consultations
 Authorization: Bearer <token>
@@ -45,12 +46,14 @@ Content-Type: application/json
 ```
 
 #### Get Consultation
+
 ```http
 GET /api/consultations/:id
 Authorization: Bearer <token>
 ```
 
 #### Update Consultation
+
 ```http
 PATCH /api/consultations/:id
 Authorization: Bearer <token>
@@ -64,12 +67,14 @@ Content-Type: application/json
 ```
 
 #### Complete Consultation
+
 ```http
 POST /api/consultations/:id/complete
 Authorization: Bearer <token>
 ```
 
 #### Upload Audio File
+
 ```http
 POST /api/consultations/:id/upload-audio
 Authorization: Bearer <token>
@@ -80,6 +85,7 @@ transcribe: true|false (optional)
 ```
 
 #### Stream Audio Chunk
+
 ```http
 POST /api/consultations/:id/stream-audio
 Authorization: Bearer <token>
@@ -90,12 +96,14 @@ chunkIndex: <number>
 ```
 
 #### Get Transcripts
+
 ```http
 GET /api/consultations/:id/transcripts
 Authorization: Bearer <token>
 ```
 
 #### Add Transcript
+
 ```http
 POST /api/consultations/:id/transcripts
 Authorization: Bearer <token>
@@ -127,6 +135,7 @@ socket.on('connected', (data) => {
 ### Consultation Events
 
 #### Start Consultation
+
 ```javascript
 socket.emit('consultation:start', {
   consultationId: 'consultation_id'
@@ -138,6 +147,7 @@ socket.on('consultation:started', (data) => {
 ```
 
 #### Stop Consultation
+
 ```javascript
 socket.emit('consultation:stop', {
   consultationId: 'consultation_id'
@@ -149,6 +159,7 @@ socket.on('consultation:stopped', (data) => {
 ```
 
 #### Pause/Resume Consultation
+
 ```javascript
 socket.emit('consultation:pause', {
   consultationId: 'consultation_id'
@@ -160,6 +171,7 @@ socket.emit('consultation:resume', {
 ```
 
 #### Get Consultation Status
+
 ```javascript
 socket.emit('consultation:status', {
   consultationId: 'consultation_id'
@@ -173,6 +185,7 @@ socket.on('consultation:status:response', (data) => {
 ### Transcript Events
 
 #### Stream Audio for Transcription
+
 ```javascript
 socket.emit('transcript:stream-audio', {
   consultationId: 'consultation_id',
@@ -190,6 +203,7 @@ socket.on('transcript:chunk-processed', (data) => {
 ```
 
 #### Add Manual Transcript
+
 ```javascript
 socket.emit('transcript:add', {
   consultationId: 'consultation_id',
@@ -203,6 +217,7 @@ socket.on('transcript:added', (data) => {
 ```
 
 #### Get All Transcripts
+
 ```javascript
 socket.emit('transcript:get-all', {
   consultationId: 'consultation_id'
@@ -214,6 +229,7 @@ socket.on('transcript:all', (data) => {
 ```
 
 #### Edit Transcript
+
 ```javascript
 socket.emit('transcript:edit', {
   consultationId: 'consultation_id',
@@ -229,6 +245,7 @@ socket.on('transcript:edited', (data) => {
 ### Agent Events
 
 #### Update Agent Status
+
 ```javascript
 socket.emit('agent:status-update', {
   consultationId: 'consultation_id',
@@ -247,6 +264,7 @@ socket.on('agent:status:updated', (data) => {
 ```
 
 #### Trigger Agent
+
 ```javascript
 socket.emit('agent:trigger', {
   consultationId: 'consultation_id',
@@ -259,6 +277,7 @@ socket.on('agent:triggered', (data) => {
 ```
 
 #### Document Generated
+
 ```javascript
 socket.on('document:generated', (data) => {
   console.log('Document type:', data.documentType);
@@ -390,5 +409,3 @@ socket.on('connect', () => {
 4. **Custom Vocabulary**: Train Watson with medical terminology
 5. **Audio Quality Monitoring**: Real-time audio quality feedback
 6. **Backup Transcription**: Fallback to alternative STT service
-
-## Made with Bob

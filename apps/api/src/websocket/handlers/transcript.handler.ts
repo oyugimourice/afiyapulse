@@ -194,4 +194,4 @@ export const handleTranscriptEvents = (socket: AuthenticatedSocket, io: any) => 
   );
 };
 
-// Made with Bob
+// 
