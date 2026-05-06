@@ -202,4 +202,4 @@ Only include vitalSigns if they are explicitly mentioned in the transcript.`;
 
 export default new ClinicalScribeAgent();
 
-// Made with Bob
+// 

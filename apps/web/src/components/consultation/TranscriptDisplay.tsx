@@ -140,4 +140,4 @@ export default function TranscriptDisplay({
   );
 }
 
-// Made with Bob
+// 

@@ -270,4 +270,3 @@ If you need assistance:
 **Purpose**: Complete script for 3-minute video demo  
 **Status**: Ready to record
 
-Made with Bob

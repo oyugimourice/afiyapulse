@@ -109,4 +109,4 @@ export abstract class EmailTemplateBase {
   abstract generate(data: any): string;
 }
 
-// Made with Bob
+// 

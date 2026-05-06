@@ -435,4 +435,3 @@ async function createTestConsultation() {
 **Last Updated**: May 3, 2026  
 **Purpose**: Guide for creating test data matching Prisma schema
 
-Made with Bob

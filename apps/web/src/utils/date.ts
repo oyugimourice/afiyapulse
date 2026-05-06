@@ -117,4 +117,4 @@ export function isFuture(date: string | Date): boolean {
   return dateObj.getTime() > new Date().getTime();
 }
 
-// Made with Bob
+// 

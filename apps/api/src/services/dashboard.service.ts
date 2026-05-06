@@ -534,4 +534,4 @@ class DashboardService {
 
 export default new DashboardService();
 
-// Made with Bob
+// 

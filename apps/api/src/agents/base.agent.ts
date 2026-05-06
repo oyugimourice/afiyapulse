@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 import { AgentType, AgentStatus, AgentMessage } from '@afiyapulse/shared-types';
 import logger from '../config/logger';
+import { z } from 'zod';
 
 export interface AgentConfig {
   name: string;
@@ -158,9 +159,9 @@ export abstract class BaseAgent extends EventEmitter {
   }
 
   /**
-   * Parse structured output from LLM response
+   * Parse structured output from LLM response with Zod schema validation
    */
-  protected parseStructuredOutput<T>(response: string, schema: any): T {
+  protected parseStructuredOutput<T>(response: string, schema: z.ZodSchema<T>): T {
     try {
       // Remove markdown code blocks if present
       const cleaned = response
@@ -170,9 +171,14 @@ export abstract class BaseAgent extends EventEmitter {
 
       const parsed = JSON.parse(cleaned);
       
-      // Basic validation against schema (can be enhanced with Zod or similar)
-      return parsed as T;
+      // Validate against Zod schema
+      const validated = schema.parse(parsed);
+      return validated;
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        logger.error(`[${this.name}] Schema validation failed:`, error.errors);
+        throw new Error(`Invalid LLM response structure: ${error.errors.map(e => e.message).join(', ')}`);
+      }
       logger.error(`[${this.name}] Failed to parse structured output:`, error);
       throw new Error('Failed to parse LLM response');
     }
@@ -213,4 +219,4 @@ export abstract class BaseAgent extends EventEmitter {
   }
 }
 
-// Made with Bob
+// 

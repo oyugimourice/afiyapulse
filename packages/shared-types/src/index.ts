@@ -13,4 +13,4 @@ export * from './api';
 // WebSocket Types
 export * from './websocket';
 
-// Made with Bob
+// 

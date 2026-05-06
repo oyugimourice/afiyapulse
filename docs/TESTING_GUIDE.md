@@ -572,4 +572,3 @@ For testing issues or questions:
 **Version**: 1.0.0  
 **Maintained by**: AfiyaPulse Development Team
 
-Made with Bob

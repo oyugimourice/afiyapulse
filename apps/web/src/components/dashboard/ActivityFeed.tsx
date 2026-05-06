@@ -104,4 +104,4 @@ export default function ActivityFeed({ activities, isLoading }: ActivityFeedProp
   );
 }
 
-// Made with Bob
+// 
